@@ -1,5 +1,5 @@
 
-# WRAPPER := docker run --rm -it -w /tmp -v ${PWD}:/tmp gcc
+WRAPPER := docker run --rm -it -w /tmp -v ${PWD}:/tmp gcc
 CC := $(WRAPPER) gcc
 CFLAGS := -std=c11 -g -static
 
@@ -7,6 +7,9 @@ ccatd: ccatd.c
 
 wrapper:
 	$(WRAPPER) sh
+
+test: ccatd
+	$(WRAPPER) sh ./test.sh
 
 clean:
 	rm -f ccatd $(patsubst %.c,%.o,$(SOURCES))
