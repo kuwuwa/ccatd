@@ -1,9 +1,14 @@
 
 WRAPPER := docker run --rm -it -w /tmp -v ${PWD}:/tmp gcc
 CC := $(WRAPPER) gcc
-CFLAGS := -std=c11 -g -static
+CFLAGS := -std=c11 -g -static -Wall -error
+LDFLAGS :=
 
-ccatd: ccatd.c
+SRCS := $(wildcard *.c)
+OBJS := $(SRCS:.c=.o)
+
+ccatd: $(OBJS)
+	$(CC) -o ccatd $(OBJS) $(LDFLAGS)
 
 wrapper:
 	$(WRAPPER) sh
@@ -12,6 +17,6 @@ test: ccatd
 	$(WRAPPER) sh ./test.sh
 
 clean:
-	rm -f ccatd $(patsubst %.c,%.o,$(SOURCES))
+	rm -f ccatd $(patsubst %.c,%.o,$(SRCS))
 
 .PHONY: test clean
