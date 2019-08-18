@@ -2,11 +2,40 @@
 
 #include "ccatd.h"
 
+void gen(Node*);
+void gen_lval(Node*);
+
 // generate
+
 void gen(Node *node) {
     if (node->kind == ND_NUM) {
         printf("  push %d\n", node->val);
         return;
+    }
+
+    if (node->kind == ND_LVAR) {
+        printf("  mov rax, rbp\n");
+        printf("  sub rax, %d\n", node->offset);
+        printf("  mov rax, [rax]\n");
+        printf("  push rax\n");
+        return;
+    }
+
+    if (node->kind == ND_ASGN) {
+        if (node->lhs->kind != ND_LVAR)
+            error("left hand side of an assignment should be a left value");
+
+        printf("  mov rax, rbp\n");
+        printf("  sub rax, %d\n", node->lhs->offset);
+        printf("  push rax\n");
+
+        gen(node->rhs);
+
+        printf("  pop rdi\n"
+               "  pop rax\n"
+               "  mov [rax], rdi\n"
+               "  push rdi\n");
+       return;
     }
 
     gen(node->lhs);
@@ -43,11 +72,10 @@ void gen(Node *node) {
                 case ND_LTE:
                     printf("  setle al\n");
                 default:
-                    break;
+                    error("should be unreachable");
             }
             printf("  movzb rax, al\n");
     }
 
     printf("  push rax\n");
 }
-

@@ -7,16 +7,7 @@
 
 #include "ccatd.h"
 
-
 // tokenize
-
-void error(char *fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
-    exit(1);
-}
 
 Token *new_token(Token_kind kind, Token *cur, char *str, int len) {
     Token *tok = calloc(1, sizeof(Token));
@@ -45,7 +36,7 @@ Token *tokenize(char *p) {
         }
 
         if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' ||
-                *p == '<' || *p == '>') {
+                *p == '<' || *p == '>' || *p == '=' || *p == ';') {
             cur = new_token(TK_KWD, cur, p++, 1);
             continue;
         }
@@ -53,6 +44,11 @@ Token *tokenize(char *p) {
         if (isdigit(*p)) {
             cur = new_token(TK_NUM, cur, p, 0);
             cur->val = strtol(p, &p, 10);
+            continue;
+        }
+
+        if (isalpha(*p)) {
+            cur = new_token(TK_IDT, cur, p++, 1);
             continue;
         }
 
@@ -65,25 +61,27 @@ Token *tokenize(char *p) {
 
 Token* token;
 
-bool consume(char* str) {
-    if (token->kind != TK_KWD || strncmp(str, token->str, token->len) != 0)
+bool consume_keyword(char* str) {
+    if (token->kind != TK_KWD || strlen(str) != token->len ||
+            strncmp(str, token->str, token->len))
         return false;
     token = token->next;
     return true;
 }
 
-void expect(char* str) {
-    if (token->kind != TK_KWD || strncmp(str, token->str, token->len) != 0)
-        error("expected \"%s\"", str);
+Token *consume(Token_kind kind) {
+    if (token->kind != kind)
+        return NULL;
+    Token *tk = token;
     token = token->next;
+    return tk;
 }
 
-int expect_number() {
-    if (token->kind != TK_NUM)
-        error("not a number");
-    int val = token->val;
+void expect(char* str) {
+    if (token->kind != TK_KWD || strlen(str) != token->len ||
+            strncmp(str, token->str, token->len))
+        error("expected \"%s\"", str);
     token = token->next;
-    return val;
 }
 
 bool at_eof() {
@@ -92,7 +90,9 @@ bool at_eof() {
 
 // parse
 
-Node *new_node(Node_kind kind, Node* lhs, Node* rhs) {
+Node *code[101];
+
+Node *new_op(Node_kind kind, Node* lhs, Node* rhs) {
     Node *node = calloc(1, sizeof(Node));
     node->kind = kind;
     node->lhs = lhs;
@@ -107,20 +107,42 @@ Node *new_node_num(int v) {
     return node;
 }
 
+Node *stmt();
 Node *expr();
+Node *equal();
 Node *comp();
 Node *add();
 Node *mul();
 Node *unary();
 Node *term();
 
+void prog() {
+    int i = 0;
+    while (i < 100 && !at_eof())
+        code[i++] = stmt();
+    code[i] = NULL;
+}
+
+Node *stmt() {
+    Node *node = expr();
+    expect(";");
+    return node;
+}
+
 Node *expr() {
+    Node *node = equal();
+    if (consume_keyword("="))
+        node = new_op(ND_ASGN, node, expr());
+    return node;
+}
+
+Node *equal() {
     Node *node = comp();
     for (;;) {
-        if (consume("=="))
-            node = new_node(ND_EQ, node, comp());
-        else if (consume("!="))
-            node = new_node(ND_NEQ, node, comp());
+        if (consume_keyword("==")) {
+            node = new_op(ND_EQ, node, comp());
+        } else if (consume_keyword("!="))
+            node = new_op(ND_NEQ, node, comp());
         else break;
     }
     return node;
@@ -129,14 +151,14 @@ Node *expr() {
 Node *comp() {
     Node *node = add();
     for (;;) {
-        if (consume("<"))
-            node = new_node(ND_LT, node, add());
-        else if (consume("<="))
-            node = new_node(ND_LTE, node, add());
-        else if (consume(">"))
-            node = new_node(ND_LT, add(), node);
-        else if (consume(">="))
-            node = new_node(ND_LTE, add(), node);
+        if (consume_keyword("<"))
+            node = new_op(ND_LT, node, add());
+        else if (consume_keyword("<="))
+            node = new_op(ND_LTE, node, add());
+        else if (consume_keyword(">"))
+            node = new_op(ND_LT, add(), node);
+        else if (consume_keyword(">="))
+            node = new_op(ND_LTE, add(), node);
         else break;
     }
     return node;
@@ -145,10 +167,10 @@ Node *comp() {
 Node *add() {
     Node *node = mul();
     for (;;) {
-        if (consume("+"))
-            node = new_node(ND_ADD, node, mul());
-        else if (consume("-"))
-            node = new_node(ND_SUB, node, mul());
+        if (consume_keyword("+"))
+            node = new_op(ND_ADD, node, mul());
+        else if (consume_keyword("-"))
+            node = new_op(ND_SUB, node, mul());
         else break;
     }
     return node;
@@ -157,30 +179,43 @@ Node *add() {
 Node *mul() {
     Node *node = unary();
     for (;;) {
-        if (consume("*"))
-            node = new_node(ND_MUL, node, unary());
-        else if (consume("/"))
-            node = new_node(ND_DIV, node, unary());
+        if (consume_keyword("*"))
+            node = new_op(ND_MUL, node, unary());
+        else if (consume_keyword("/"))
+            node = new_op(ND_DIV, node, unary());
         else break;
     }
     return node;
 }
 
 Node *unary() {
-    if (consume("+"))
+    if (consume_keyword("+"))
         return term();
-    if (consume("-"))
-        return new_node(ND_SUB, new_node_num(0), term());
+    if (consume_keyword("-"))
+        return new_op(ND_SUB, new_node_num(0), term());
     return term();
 }
 
 Node *term() {
-    if (consume("(")) {
+    if (consume_keyword("(")) {
         Node *node = expr();
         expect(")");
         return node;
     }
 
-    return new_node_num(expect_number());
-}
+    Token *tk = consume(TK_IDT);
+    if (tk) {
+        Node *node = calloc(1, sizeof(Node));
+        node->kind = ND_LVAR;
+        node->offset = (tk->str[0] - 'a' + 1) * 8;
+        return node;
+    }
 
+    tk = consume(TK_NUM);
+    if (!tk) {
+        error("'(' <expr> ')' | <ident> | <num> expected");
+    }
+
+    Node *node = new_node_num(tk->val);
+    return node;
+}
