@@ -29,4 +29,6 @@ try 23 'qqqq = - 10 * - 2 + 3;'
 try 1 '1 * 2 * 3 * 4 * 5 == 120;'
 try 1 '1 < 2 > 0 != 0;'
 try 27 'a = 2; b = a + 4; c = a * (b + 1) + 5; a + b + c;'
+try 19 'a = 2; b = a + 4; return c = a * (b + 1) + 5; a + b + c;'
+try 4 '1; 2; 3; return 4; 5;'
 echo "Accepted!!"

@@ -38,6 +38,15 @@ void gen(Node *node) {
        return;
     }
 
+    if (node->kind == ND_RETURN) {
+        gen(node->lhs);
+        printf("  pop rax\n"
+               "  mov rsp, rbp\n"
+               "  pop rbp\n"
+               "  ret\n");
+        return;
+    }
+
     gen(node->lhs);
     gen(node->rhs);
 

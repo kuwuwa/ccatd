@@ -49,7 +49,13 @@ Token *tokenize(char *p) {
 
         char *q = p;
         while (isalpha(*q)) q++;
-        if (p < q) {
+        int len = q - p;
+        if (len == 6 && memcmp("return", p, 6) == 0) {
+            cur = new_token(TK_RETURN, cur, p, 0);
+            p += 6;
+            continue;
+        }
+        if (len > 0) {
             cur = new_token(TK_IDT, cur, p, q - p);
             p = q;
             continue;
@@ -128,7 +134,14 @@ void prog() {
 }
 
 Node *stmt() {
-    Node *node = expr();
+    Node *node;
+    if (consume(TK_RETURN)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_RETURN;
+        node->lhs = expr();
+    } else {
+        node = expr();
+    }
     expect(";");
     return node;
 }
