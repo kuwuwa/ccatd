@@ -44,7 +44,6 @@ typedef enum {
 } Node_kind;
 
 typedef struct Node Node;
-
 struct Node {
     Node_kind kind;
     Node *lhs;
@@ -52,6 +51,16 @@ struct Node {
     int val; // ND_NUM
     int offset;
 };
+
+typedef struct Lvar Lvar;
+struct Lvar {
+    Lvar *next;
+    char *name;
+    int len;
+    int offset;
+};
+
+extern Lvar *locals;
 
 void prog();
 

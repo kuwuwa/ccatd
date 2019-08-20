@@ -22,11 +22,11 @@ try() {
   fi
 }
 
-try 1 'x = 1;'
-try 121 'x = 1 + 2  *  3  +  4; x * x;'
-try 27 'a = 2; b = a + 4; c = a * (b + 1) + 5; a + b + c;'
-try 117 'p = 100 + (20 - 3); p;'
-try 23 'q = - 10 * - 2 + 3;'
+try 42 'answer = 42;'
+try 121 'num = 1 + 2  *  3  +  4; num * num;'
+try 117 'pppp = 100 + (20 - 3); pppp;'
+try 23 'qqqq = - 10 * - 2 + 3;'
 try 1 '1 * 2 * 3 * 4 * 5 == 120;'
 try 1 '1 < 2 > 0 != 0;'
+try 27 'a = 2; b = a + 4; c = a * (b + 1) + 5; a + b + c;'
 echo "Accepted!!"

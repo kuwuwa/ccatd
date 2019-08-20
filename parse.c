@@ -47,8 +47,11 @@ Token *tokenize(char *p) {
             continue;
         }
 
-        if (isalpha(*p)) {
-            cur = new_token(TK_IDT, cur, p++, 1);
+        char *q = p;
+        while (isalpha(*q)) q++;
+        if (p < q) {
+            cur = new_token(TK_IDT, cur, p, q - p);
+            p = q;
             continue;
         }
 
@@ -91,6 +94,7 @@ bool at_eof() {
 // parse
 
 Node *code[101];
+Lvar *locals = NULL;
 
 Node *new_op(Node_kind kind, Node* lhs, Node* rhs) {
     Node *node = calloc(1, sizeof(Node));
@@ -196,6 +200,14 @@ Node *unary() {
     return term();
 }
 
+Lvar *find_lvar(Token *token) {
+    for (Lvar *var = locals; var; var = var->next) {
+        if (token->len == var->len && memcmp(token->str, var->name, token->len) == 0)
+            return var;
+    }
+    return NULL;
+}
+
 Node *term() {
     if (consume_keyword("(")) {
         Node *node = expr();
@@ -205,9 +217,20 @@ Node *term() {
 
     Token *tk = consume(TK_IDT);
     if (tk) {
+        Lvar *var = find_lvar(tk);
+        if (var == NULL) {
+            var = calloc(1, sizeof(Lvar));
+            var->name = tk->str;
+            var->len = tk->len;
+            var->offset = locals->offset + 8;
+            var->next = locals;
+
+            locals = var;
+        }
+
         Node *node = calloc(1, sizeof(Node));
         node->kind = ND_LVAR;
-        node->offset = (tk->str[0] - 'a' + 1) * 8;
+        node->offset = var->offset;
         return node;
     }
 
