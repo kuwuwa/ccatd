@@ -31,4 +31,7 @@ try 1 '1 < 2 > 0 != 0;'
 try 27 'a = 2; b = a + 4; c = a * (b + 1) + 5; a + b + c;'
 try 19 'a = 2; b = a + 4; return c = a * (b + 1) + 5; a + b + c;'
 try 4 '1; 2; 3; return 4; 5;'
+try 8 'if (-1) 8; else 4;'
+try 4 'if (0) 8; else 4;'
+try 103 'a = 3; if (a < 2) a = 2; b = 10; if (a < b) b = 100; a+b;'
 echo "Accepted!!"

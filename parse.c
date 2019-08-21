@@ -48,13 +48,24 @@ Token *tokenize(char *p) {
         }
 
         char *q = p;
-        while (isalpha(*q)) q++;
+        while (isalpha(*q) || isdigit(*q) || *q == '_') q++;
         int len = q - p;
-        if (len == 6 && memcmp("return", p, 6) == 0) {
+        if (len == 6 && !memcmp("return", p, 6)) {
             cur = new_token(TK_RETURN, cur, p, 0);
             p += 6;
             continue;
         }
+        if (len == 2 && !memcmp("if", p, 2)) {
+            cur = new_token(TK_IF, cur, p, 0);
+            p += 2;
+            continue;
+        }
+        if (len == 4 && !memcmp("else", p, 4)) {
+            cur = new_token(TK_ELSE, cur, p, 0);
+            p += 4;
+            continue;
+        }
+
         if (len > 0) {
             cur = new_token(TK_IDT, cur, p, q - p);
             p = q;
@@ -86,7 +97,7 @@ Token *consume(Token_kind kind) {
     return tk;
 }
 
-void expect(char* str) {
+void expect_keyword(char* str) {
     if (token->kind != TK_KWD || strlen(str) != token->len ||
             strncmp(str, token->str, token->len))
         error("expected \"%s\"", str);
@@ -139,10 +150,19 @@ Node *stmt() {
         node = calloc(1, sizeof(Node));
         node->kind = ND_RETURN;
         node->lhs = expr();
+        expect_keyword(";");
+    } else if (consume(TK_IF)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_IF;
+        expect_keyword("(");
+        node->cond = expr();
+        expect_keyword(")");
+        node->lhs = stmt();
+        node->rhs = consume(TK_ELSE) ? stmt() : NULL;
     } else {
         node = expr();
+        expect_keyword(";");
     }
-    expect(";");
     return node;
 }
 
@@ -156,9 +176,9 @@ Node *expr() {
 Node *equal() {
     Node *node = comp();
     for (;;) {
-        if (consume_keyword("==")) {
+        if (consume_keyword("=="))
             node = new_op(ND_EQ, node, comp());
-        } else if (consume_keyword("!="))
+        else if (consume_keyword("!="))
             node = new_op(ND_NEQ, node, comp());
         else break;
     }
@@ -224,7 +244,7 @@ Lvar *find_lvar(Token *token) {
 Node *term() {
     if (consume_keyword("(")) {
         Node *node = expr();
-        expect(")");
+        expect_keyword(")");
         return node;
     }
 

@@ -7,8 +7,11 @@ void gen_lval(Node*);
 
 // generate
 
+int label_num = 0;
+
 void gen(Node *node) {
     if (node->kind == ND_NUM) {
+        printf("  mov rax, %d\n", node->val);
         printf("  push %d\n", node->val);
         return;
     }
@@ -31,10 +34,10 @@ void gen(Node *node) {
 
         gen(node->rhs);
 
-        printf("  pop rdi\n"
-               "  pop rax\n"
-               "  mov [rax], rdi\n"
-               "  push rdi\n");
+        printf("  pop rax\n"
+               "  pop rdi\n"
+               "  mov [rdi], rax\n"
+               "  push rax\n");
        return;
     }
 
@@ -46,6 +49,28 @@ void gen(Node *node) {
                "  ret\n");
         return;
     }
+
+    if (node->kind == ND_IF) {
+        gen(node->cond);
+        printf("  pop rax\n"
+               "  cmp rax, 0\n");
+        if (node->rhs == NULL) {
+            printf("  je .Lend%d\n", label_num);
+            gen(node->lhs);
+            printf(".Lend%d:\n", label_num);
+        } else {
+            printf("  je  .Lelse%d\n", label_num);
+            gen(node->lhs);
+            printf("  jmp .Lend%d\n", label_num);
+            printf(".Lelse%d:\n", label_num);
+            gen(node->rhs);
+            printf(".Lend%d:\n", label_num);
+        }
+
+        label_num += 1;
+        return;
+    }
+
 
     gen(node->lhs);
     gen(node->rhs);
@@ -85,6 +110,5 @@ void gen(Node *node) {
             }
             printf("  movzb rax, al\n");
     }
-
     printf("  push rax\n");
 }
