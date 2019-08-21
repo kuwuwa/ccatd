@@ -3,7 +3,8 @@
 #include "ccatd.h"
 
 void gen(Node*);
-void gen_lval(Node*);
+void gen_stmt(Node*);
+bool is_expr(Node_kind);
 
 // generate
 
@@ -55,22 +56,35 @@ void gen(Node *node) {
         printf("  pop rax\n"
                "  cmp rax, 0\n");
         if (node->rhs == NULL) {
-            printf("  je .Lend%d\n", label_num);
-            gen(node->lhs);
-            printf(".Lend%d:\n", label_num);
+            printf("  je .Lend_if%d\n", label_num);
+            gen_stmt(node->lhs);
+            printf(".Lend_if%d:\n", label_num);
         } else {
             printf("  je  .Lelse%d\n", label_num);
-            gen(node->lhs);
-            printf("  jmp .Lend%d\n", label_num);
+            gen_stmt(node->lhs);
+            printf("  jmp .Lend_if%d\n", label_num);
             printf(".Lelse%d:\n", label_num);
-            gen(node->rhs);
-            printf(".Lend%d:\n", label_num);
+            gen_stmt(node->rhs);
+            printf(".Lend_if%d:\n", label_num);
         }
 
         label_num += 1;
         return;
     }
 
+    if (node->kind == ND_WHILE) {
+        printf(".Lwhile%d:\n", label_num);
+        gen(node->cond);
+        printf("  pop rax\n"
+               "  cmp rax, 0\n");
+        printf("  je .Lend_while%d\n", label_num);
+        gen_stmt(node->lhs);
+        printf("  jmp .Lwhile%d\n", label_num);
+        printf(".Lend_while%d:\n", label_num);
+
+        label_num += 1;
+        return;
+    }
 
     gen(node->lhs);
     gen(node->rhs);
@@ -112,3 +126,18 @@ void gen(Node *node) {
     }
     printf("  push rax\n");
 }
+
+void gen_stmt(Node* node) {
+    gen(node);
+    if (is_expr(node->kind)) printf("  pop rax\n");
+}
+
+bool is_expr(Node_kind kind) {
+    static Node_kind expr_kinds[] = {
+        ND_NUM, ND_LVAR, ND_ASGN, ND_ADD, ND_SUB, ND_MUL, ND_DIV, ND_EQ, ND_NEQ, ND_LT, ND_LTE
+    };
+    for (int i = 0; i < sizeof(expr_kinds) / sizeof(Node_kind); i++)
+        if (expr_kinds[i] == kind) return true;
+    return false;
+}
+

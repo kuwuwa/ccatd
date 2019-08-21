@@ -1,3 +1,4 @@
+#include <stdbool.h>
 
 // util
 
@@ -14,6 +15,7 @@ typedef enum {
     TK_RETURN,
     TK_IF,
     TK_ELSE,
+    TK_WHILE
 } Token_kind;
 
 typedef struct Token Token;
@@ -48,6 +50,7 @@ typedef enum {
 
     ND_RETURN,
     ND_IF,
+    ND_WHILE,
 } Node_kind;
 
 typedef struct Node Node;
@@ -77,3 +80,5 @@ void prog();
 extern Node *code[];
 
 void gen(Node *node);
+void gen_stmt(Node* node);
+bool is_expr(Node_kind);

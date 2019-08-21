@@ -65,6 +65,11 @@ Token *tokenize(char *p) {
             p += 4;
             continue;
         }
+        if (len == 5 && !memcmp("while", p, 5)) {
+            cur = new_token(TK_WHILE, cur, p, 0);
+            p += 5;
+            continue;
+        }
 
         if (len > 0) {
             cur = new_token(TK_IDT, cur, p, q - p);
@@ -159,10 +164,18 @@ Node *stmt() {
         expect_keyword(")");
         node->lhs = stmt();
         node->rhs = consume(TK_ELSE) ? stmt() : NULL;
+    } else if (consume(TK_WHILE)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_WHILE;
+        expect_keyword("(");
+        node->cond = expr();
+        expect_keyword(")");
+        node->lhs = stmt();
     } else {
         node = expr();
         expect_keyword(";");
     }
+
     return node;
 }
 

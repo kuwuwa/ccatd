@@ -1,6 +1,6 @@
 
 CC := gcc
-CFLAGS := -std=c11 -g -static -Wall -error
+CFLAGS := -std=c11 -g -static -Wall -Werror
 LDFLAGS :=
 
 SRCS := $(wildcard *.c)
