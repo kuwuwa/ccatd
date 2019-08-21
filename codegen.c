@@ -86,6 +86,22 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_FOR) {
+        gen(node->lhs);
+        printf("  pop rax\n");
+        printf(".Lfor%d:\n", label_num);
+        gen(node->cond);
+        printf("  pop rax\n"
+               "  cmp rax, 0\n");
+        printf("  je .Lend_for%d\n", label_num);
+        gen_stmt(node->cls1);
+        gen(node->rhs);
+        printf("  pop rax\n");
+        printf("  jmp .Lfor%d\n", label_num);
+        printf(".Lend_for%d:\n", label_num);
+        return;
+    }
+
     gen(node->lhs);
     gen(node->rhs);
 
@@ -119,6 +135,7 @@ void gen(Node *node) {
                     break;
                 case ND_LTE:
                     printf("  setle al\n");
+                    break;
                 default:
                     error("should be unreachable");
             }

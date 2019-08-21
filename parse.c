@@ -70,6 +70,11 @@ Vec *tokenize(char *p) {
             p += 5;
             continue;
         }
+        if (len == 3 && !memcmp("for", p, 3)) {
+            vec_push(vec, new_token(TK_FOR, p, 0));
+            p += 3;
+            continue;
+        }
 
         if (len > 0) {
             vec_push(vec, new_token(TK_IDT, p, q - p));
@@ -170,6 +175,23 @@ Vec *stmt() {
             expect_keyword("(");
             node->cond = expr();
             expect_keyword(")");
+            node->cls1 = stmt();
+        } else if (consume(TK_FOR)) {
+            node = calloc(1, sizeof(Node));
+            node->kind = ND_FOR;
+            expect_keyword("(");
+            if (!consume_keyword(";")) {
+                node->lhs = expr();
+                expect_keyword(";");
+            }
+            if (!consume_keyword(";")) {
+                node->cond = expr();
+                expect_keyword(";");
+            }
+            if (!consume_keyword(")")) {
+                node->rhs = expr();
+                expect_keyword(")");
+            }
             node->cls1 = stmt();
         } else {
             node = expr();
