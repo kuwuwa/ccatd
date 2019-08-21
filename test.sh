@@ -5,7 +5,7 @@ APP=ccatd
 try() {
   expected="$1"
   input="$2"
-  ./${APP} "$input" > _temp.s
+  ./${APP} "{ $input }" > _temp.s
   if [ "$?" != 0 ]; then
     echo "compilation failed: \"$2\""
     exit 1

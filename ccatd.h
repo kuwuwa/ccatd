@@ -1,5 +1,16 @@
 #include <stdbool.h>
 
+// struct declarations
+
+typedef struct Token Token;
+struct Token;
+
+typedef struct Node Node;
+struct Node;
+
+typedef struct Vector Vec;
+struct Vector;
+
 // util
 
 void error(char *fmt, ...);
@@ -18,8 +29,6 @@ typedef enum {
     TK_WHILE
 } Token_kind;
 
-typedef struct Token Token;
-
 struct Token {
     Token_kind kind;
     Token *next;
@@ -28,9 +37,9 @@ struct Token {
     int len;
 };
 
-Token *tokenize(char *p);
+Vec *tokenize(char *p);
 
-extern Token *token;
+extern Vec *tokens;
 
 // parse
 
@@ -56,11 +65,13 @@ typedef enum {
 typedef struct Node Node;
 struct Node {
     Node_kind kind;
-    Node *lhs;
-    Node *rhs;
-    Node *cond;
-    int val; // ND_NUM
-    int offset;
+    Node *cond;     // ND_IF, ND_WHILE
+    Node *lhs;      // binary operators
+    Node *rhs;      // binary operators
+    Vec *cls1;      // ND_IF, ND_WHILE
+    Vec *cls2;      // ND_IF
+    int val;        // ND_NUM
+    int offset;     // ND_LVAR
 };
 
 typedef struct Lvar Lvar;
@@ -73,12 +84,19 @@ struct Lvar {
 
 extern Lvar *locals;
 
-void prog();
+Vec* prog();
+
+// containers
+
+Vec *vec_new();
+void vec_push(Vec *vec, void *node);
+int vec_len(Vec *vec);
+void *vec_at(Vec *vec, int idx);
 
 // codegen
 
-extern Node *code[];
+extern Vec *code;
 
 void gen(Node *node);
-void gen_stmt(Node* node);
+void gen_stmt(Vec* node);
 bool is_expr(Node_kind);

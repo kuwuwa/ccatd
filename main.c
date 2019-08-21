@@ -10,12 +10,14 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    token = tokenize(argv[1]);
+    tokens = tokenize(argv[1]);
+
     locals = calloc(1, sizeof(Lvar));
     locals->next = NULL;
     locals->len = -1;
     locals->offset = 0;
-    prog();
+
+    code = prog();
 
     printf(".intel_syntax noprefix\n"
            ".global main\n"
@@ -24,9 +26,7 @@ int main(int argc, char **argv) {
            "  mov rbp, rsp\n");
     printf("  sub rsp, %d\n", locals->offset);
 
-    for (int i = 0; code[i]; i++) {
-        gen_stmt(code[i]);
-    }
+    gen_stmt(code);
 
     printf("  mov rsp, rbp\n");
     printf("  pop rbp\n");

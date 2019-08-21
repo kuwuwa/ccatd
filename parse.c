@@ -9,19 +9,16 @@
 
 // tokenize
 
-Token *new_token(Token_kind kind, Token *cur, char *str, int len) {
+Token *new_token(Token_kind kind, char *str, int len) {
     Token *tok = calloc(1, sizeof(Token));
     tok->kind = kind;
     tok->str = str;
     tok->len = len;
-    cur->next = tok;
     return tok;
 }
 
-Token *tokenize(char *p) {
-    Token head;
-    head.next = NULL;
-    Token *cur = &head;
+Vec *tokenize(char *p) {
+    Vec *vec = vec_new();
 
     while (*p) {
         if (isspace(*p)) {
@@ -30,20 +27,23 @@ Token *tokenize(char *p) {
         }
 
         if ((*p == '=' || *p == '!' || *p == '<' || *p == '>') && p+1 && *(p+1) == '=') {
-            cur = new_token(TK_KWD, cur, p, 2);
+            vec_push(vec, new_token(TK_KWD, p, 2));
             p += 2;
             continue;
         }
 
         if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' ||
-                *p == '<' || *p == '>' || *p == '=' || *p == ';') {
-            cur = new_token(TK_KWD, cur, p++, 1);
+                *p == '<' || *p == '>' || *p == '=' || *p == ';' ||
+                *p == '{' || *p == '}') {
+            vec_push(vec, new_token(TK_KWD, p, 1));
+            p += 1;
             continue;
         }
 
         if (isdigit(*p)) {
-            cur = new_token(TK_NUM, cur, p, 0);
-            cur->val = strtol(p, &p, 10);
+            Token *tk = new_token(TK_NUM, p, 0);
+            tk->val = strtol(p, &p, 10);
+            vec_push(vec, tk);
             continue;
         }
 
@@ -51,28 +51,28 @@ Token *tokenize(char *p) {
         while (isalpha(*q) || isdigit(*q) || *q == '_') q++;
         int len = q - p;
         if (len == 6 && !memcmp("return", p, 6)) {
-            cur = new_token(TK_RETURN, cur, p, 0);
+            vec_push(vec, new_token(TK_RETURN, p, 0));
             p += 6;
             continue;
         }
         if (len == 2 && !memcmp("if", p, 2)) {
-            cur = new_token(TK_IF, cur, p, 0);
+            vec_push(vec, new_token(TK_IF, p, 0));
             p += 2;
             continue;
         }
         if (len == 4 && !memcmp("else", p, 4)) {
-            cur = new_token(TK_ELSE, cur, p, 0);
+            vec_push(vec, new_token(TK_ELSE, p, 0));
             p += 4;
             continue;
         }
         if (len == 5 && !memcmp("while", p, 5)) {
-            cur = new_token(TK_WHILE, cur, p, 0);
+            vec_push(vec, new_token(TK_WHILE, p, 0));
             p += 5;
             continue;
         }
 
         if (len > 0) {
-            cur = new_token(TK_IDT, cur, p, q - p);
+            vec_push(vec, new_token(TK_IDT, p, q - p));
             p = q;
             continue;
         }
@@ -80,42 +80,38 @@ Token *tokenize(char *p) {
         error("an unknown character was found");
     }
 
-    new_token(TK_EOF, cur, p, 0);
-    return head.next;
+    return vec;
 }
 
-Token* token;
+Vec *tokens;
+int index = 0;
 
 bool consume_keyword(char* str) {
-    if (token->kind != TK_KWD || strlen(str) != token->len ||
-            strncmp(str, token->str, token->len))
+    Token *tk = vec_at(tokens, index);
+    if (tk->kind != TK_KWD || strlen(str) != tk->len || strncmp(str, tk->str, tk->len))
         return false;
-    token = token->next;
+    index++;
     return true;
 }
 
 Token *consume(Token_kind kind) {
-    if (token->kind != kind)
+    Token *tk = vec_at(tokens, index);
+    if (tk->kind != kind)
         return NULL;
-    Token *tk = token;
-    token = token->next;
+    index++;
     return tk;
 }
 
 void expect_keyword(char* str) {
-    if (token->kind != TK_KWD || strlen(str) != token->len ||
-            strncmp(str, token->str, token->len))
+    Token *tk = vec_at(tokens, index);
+    if (tk->kind != TK_KWD || strlen(str) != tk->len || strncmp(str, tk->str, tk->len))
         error("expected \"%s\"", str);
-    token = token->next;
-}
-
-bool at_eof() {
-    return token->kind == TK_EOF;
+    index++;
 }
 
 // parse
 
-Node *code[101];
+Vec *code;
 Lvar *locals = NULL;
 
 Node *new_op(Node_kind kind, Node* lhs, Node* rhs) {
@@ -133,7 +129,8 @@ Node *new_node_num(int v) {
     return node;
 }
 
-Node *stmt();
+Vec *stmt();
+
 Node *expr();
 Node *equal();
 Node *comp();
@@ -142,41 +139,45 @@ Node *mul();
 Node *unary();
 Node *term();
 
-void prog() {
-    int i = 0;
-    while (i < 100 && !at_eof())
-        code[i++] = stmt();
-    code[i] = NULL;
+Vec *prog() {
+    return stmt();
 }
 
-Node *stmt() {
-    Node *node;
-    if (consume(TK_RETURN)) {
-        node = calloc(1, sizeof(Node));
-        node->kind = ND_RETURN;
-        node->lhs = expr();
+Vec *stmt() {
+    Vec *vec = vec_new();
+    if (!consume_keyword("{")) {
+        vec_push(vec, expr());
         expect_keyword(";");
-    } else if (consume(TK_IF)) {
-        node = calloc(1, sizeof(Node));
-        node->kind = ND_IF;
-        expect_keyword("(");
-        node->cond = expr();
-        expect_keyword(")");
-        node->lhs = stmt();
-        node->rhs = consume(TK_ELSE) ? stmt() : NULL;
-    } else if (consume(TK_WHILE)) {
-        node = calloc(1, sizeof(Node));
-        node->kind = ND_WHILE;
-        expect_keyword("(");
-        node->cond = expr();
-        expect_keyword(")");
-        node->lhs = stmt();
-    } else {
-        node = expr();
-        expect_keyword(";");
+        return vec;
+    }
+    for (Node *node; !consume_keyword("}"); vec_push(vec, node)) {
+        if (consume(TK_RETURN)) {
+            node = calloc(1, sizeof(Node));
+            node->kind = ND_RETURN;
+            node->lhs = expr();
+            expect_keyword(";");
+        } else if (consume(TK_IF)) {
+            node = calloc(1, sizeof(Node));
+            node->kind = ND_IF;
+            expect_keyword("(");
+            node->cond = expr();
+            expect_keyword(")");
+            node->cls1 = stmt();
+            node->cls2 = consume(TK_ELSE) ? stmt() : NULL;
+        } else if (consume(TK_WHILE)) {
+            node = calloc(1, sizeof(Node));
+            node->kind = ND_WHILE;
+            expect_keyword("(");
+            node->cond = expr();
+            expect_keyword(")");
+            node->cls1 = stmt();
+        } else {
+            node = expr();
+            expect_keyword(";");
+        }
     }
 
-    return node;
+    return vec;
 }
 
 Node *expr() {
