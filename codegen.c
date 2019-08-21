@@ -3,7 +3,7 @@
 #include "ccatd.h"
 
 void gen(Node*);
-void gen_stmt(Vec*);
+void gen_stmt(Node*);
 bool is_expr(Node_kind);
 
 // generate
@@ -55,16 +55,16 @@ void gen(Node *node) {
         gen(node->cond);
         printf("  pop rax\n"
                "  cmp rax, 0\n");
-        if (node->cls2 == NULL) {
+        if (node->rhs == NULL) {
             printf("  je .Lend_if%d\n", label_num);
-            gen_stmt(node->cls1);
+            gen_stmt(node->lhs);
             printf(".Lend_if%d:\n", label_num);
         } else {
             printf("  je  .Lelse%d\n", label_num);
-            gen_stmt(node->cls1);
+            gen_stmt(node->lhs);
             printf("  jmp .Lend_if%d\n", label_num);
             printf(".Lelse%d:\n", label_num);
-            gen_stmt(node->cls2);
+            gen_stmt(node->rhs);
             printf(".Lend_if%d:\n", label_num);
         }
 
@@ -78,7 +78,7 @@ void gen(Node *node) {
         printf("  pop rax\n"
                "  cmp rax, 0\n");
         printf("  je .Lend_while%d\n", label_num);
-        gen_stmt(node->cls1);
+        gen_stmt(node->body);
         printf("  jmp .Lwhile%d\n", label_num);
         printf(".Lend_while%d:\n", label_num);
 
@@ -87,18 +87,23 @@ void gen(Node *node) {
     }
 
     if (node->kind == ND_FOR) {
-        gen(node->lhs);
-        printf("  pop rax\n");
+        gen_stmt(node->lhs);
         printf(".Lfor%d:\n", label_num);
         gen(node->cond);
         printf("  pop rax\n"
                "  cmp rax, 0\n");
         printf("  je .Lend_for%d\n", label_num);
-        gen_stmt(node->cls1);
-        gen(node->rhs);
-        printf("  pop rax\n");
+        gen_stmt(node->body);
+        gen_stmt(node->rhs);
         printf("  jmp .Lfor%d\n", label_num);
         printf(".Lend_for%d:\n", label_num);
+        return;
+    }
+
+    if (node->kind == ND_BLOCK) {
+        int len = vec_len(node->block);
+        for (int i = 0; i < len; i++)
+            gen_stmt(vec_at(node->block, i));
         return;
     }
 
@@ -144,13 +149,10 @@ void gen(Node *node) {
     printf("  push rax\n");
 }
 
-void gen_stmt(Vec* vec) {
-    int len = vec_len(vec);
-    for (int i = 0; i < len; i++) {
-        gen(vec_at(vec, i));
-        if (is_expr(((Node*)vec_at(vec, i))->kind))
-            printf("  pop rax\n");
-    }
+void gen_stmt(Node* node) {
+    gen(node);
+    if (is_expr(node->kind))
+        printf("  pop rax\n");
 }
 
 bool is_expr(Node_kind kind) {

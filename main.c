@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
     locals->len = -1;
     locals->offset = 0;
 
-    code = prog();
+    code = block();
 
     printf(".intel_syntax noprefix\n"
            ".global main\n"
@@ -26,7 +26,9 @@ int main(int argc, char **argv) {
            "  mov rbp, rsp\n");
     printf("  sub rsp, %d\n", locals->offset);
 
-    gen_stmt(code);
+    int len = vec_len(code);
+    for (int i = 0; i < len; i++)
+        gen_stmt(vec_at(code, i));
 
     printf("  mov rsp, rbp\n");
     printf("  pop rbp\n");

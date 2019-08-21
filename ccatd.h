@@ -62,6 +62,7 @@ typedef enum {
     ND_IF,
     ND_WHILE,
     ND_FOR,
+    ND_BLOCK,
 } Node_kind;
 
 typedef struct Node Node;
@@ -70,8 +71,8 @@ struct Node {
     Node *cond;     // ND_IF, ND_WHILE
     Node *lhs;      // binary operators
     Node *rhs;      // binary operators
-    Vec *cls1;      // ND_IF, ND_WHILE
-    Vec *cls2;      // ND_IF
+    Node *body;     // ND_WHILE, ND_FOR
+    Vec *block;       // ND_BLOCK
     int val;        // ND_NUM
     int offset;     // ND_LVAR
 };
@@ -86,7 +87,7 @@ struct Lvar {
 
 extern Lvar *locals;
 
-Vec* prog();
+Vec* block();
 
 // containers
 
@@ -100,5 +101,5 @@ void *vec_at(Vec *vec, int idx);
 extern Vec *code;
 
 void gen(Node *node);
-void gen_stmt(Vec* node);
+void gen_stmt(Node* node);
 bool is_expr(Node_kind);

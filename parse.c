@@ -91,12 +91,17 @@ Vec *tokenize(char *p) {
 Vec *tokens;
 int index = 0;
 
-bool consume_keyword(char* str) {
+bool consume_keyword(char *str) {
     Token *tk = vec_at(tokens, index);
     if (tk->kind != TK_KWD || strlen(str) != tk->len || strncmp(str, tk->str, tk->len))
         return false;
     index++;
     return true;
+}
+
+bool lookahead_keyword(char *str) {
+    Token *tk = vec_at(tokens, index);
+    return tk->kind == TK_KWD && strlen(str) == tk->len && !strncmp(str, tk->str, tk->len);
 }
 
 Token *consume(Token_kind kind) {
@@ -134,8 +139,8 @@ Node *new_node_num(int v) {
     return node;
 }
 
-Vec *stmt();
-
+Node *stmt();
+Vec *block();
 Node *expr();
 Node *equal();
 Node *comp();
@@ -144,62 +149,63 @@ Node *mul();
 Node *unary();
 Node *term();
 
-Vec *prog() {
-    return stmt();
+Vec *block() {
+    Vec *vec = vec_new();
+    expect_keyword("{");
+    while (!consume_keyword("}"))
+        vec_push(vec, stmt());
+    return vec;
 }
 
-Vec *stmt() {
-    Vec *vec = vec_new();
-    if (!consume_keyword("{")) {
-        vec_push(vec, expr());
+Node *stmt() {
+    Node *node;
+    if (consume(TK_RETURN)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_RETURN;
+        node->lhs = expr();
         expect_keyword(";");
-        return vec;
-    }
-    for (Node *node; !consume_keyword("}"); vec_push(vec, node)) {
-        if (consume(TK_RETURN)) {
-            node = calloc(1, sizeof(Node));
-            node->kind = ND_RETURN;
+    } else if (consume(TK_IF)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_IF;
+        expect_keyword("(");
+        node->cond = expr();
+        expect_keyword(")");
+        node->lhs = stmt();
+        node->rhs = consume(TK_ELSE) ? stmt() : NULL;
+    } else if (consume(TK_WHILE)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_WHILE;
+        expect_keyword("(");
+        node->cond = expr();
+        expect_keyword(")");
+        node->body = stmt();
+    } else if (consume(TK_FOR)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_FOR;
+        expect_keyword("(");
+        if (!consume_keyword(";")) {
             node->lhs = expr();
             expect_keyword(";");
-        } else if (consume(TK_IF)) {
-            node = calloc(1, sizeof(Node));
-            node->kind = ND_IF;
-            expect_keyword("(");
+        }
+        if (!consume_keyword(";")) {
             node->cond = expr();
-            expect_keyword(")");
-            node->cls1 = stmt();
-            node->cls2 = consume(TK_ELSE) ? stmt() : NULL;
-        } else if (consume(TK_WHILE)) {
-            node = calloc(1, sizeof(Node));
-            node->kind = ND_WHILE;
-            expect_keyword("(");
-            node->cond = expr();
-            expect_keyword(")");
-            node->cls1 = stmt();
-        } else if (consume(TK_FOR)) {
-            node = calloc(1, sizeof(Node));
-            node->kind = ND_FOR;
-            expect_keyword("(");
-            if (!consume_keyword(";")) {
-                node->lhs = expr();
-                expect_keyword(";");
-            }
-            if (!consume_keyword(";")) {
-                node->cond = expr();
-                expect_keyword(";");
-            }
-            if (!consume_keyword(")")) {
-                node->rhs = expr();
-                expect_keyword(")");
-            }
-            node->cls1 = stmt();
-        } else {
-            node = expr();
             expect_keyword(";");
         }
+        if (!consume_keyword(")")) {
+            node->rhs = expr();
+            expect_keyword(")");
+        }
+        node->body = stmt();
+    } else if (lookahead_keyword("{")) {
+        Vec *vec = block();
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_BLOCK;
+        node->block = vec;
+    } else {
+        node = expr();
+        expect_keyword(";");
     }
-
-    return vec;
+    return node;
 }
 
 Node *expr() {
