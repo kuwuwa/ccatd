@@ -93,7 +93,7 @@ int index = 0;
 
 bool consume_keyword(char *str) {
     Token *tk = vec_at(tokens, index);
-    if (tk->kind != TK_KWD || strlen(str) != tk->len || strncmp(str, tk->str, tk->len))
+    if (tk->kind != TK_KWD || strlen(str) != tk->len || memcmp(str, tk->str, tk->len))
         return false;
     index++;
     return true;
@@ -101,7 +101,7 @@ bool consume_keyword(char *str) {
 
 bool lookahead_keyword(char *str) {
     Token *tk = vec_at(tokens, index);
-    return tk->kind == TK_KWD && strlen(str) == tk->len && !strncmp(str, tk->str, tk->len);
+    return tk->kind == TK_KWD && strlen(str) == tk->len && !memcmp(str, tk->str, tk->len);
 }
 
 Token *consume(Token_kind kind) {
@@ -114,7 +114,7 @@ Token *consume(Token_kind kind) {
 
 void expect_keyword(char* str) {
     Token *tk = vec_at(tokens, index);
-    if (tk->kind != TK_KWD || strlen(str) != tk->len || strncmp(str, tk->str, tk->len))
+    if (tk->kind != TK_KWD || strlen(str) != tk->len || memcmp(str, tk->str, tk->len))
         error("expected \"%s\"", str);
     index++;
 }
@@ -311,7 +311,7 @@ Node *term() {
 
     tk = consume(TK_NUM);
     if (!tk) {
-        error("'(' <expr> ')' | <ident> | <num> expected");
+        error("invalid expression or statement");
     }
 
     Node *node = new_node_num(tk->val);

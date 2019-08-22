@@ -2,8 +2,6 @@
 
 #include "ccatd.h"
 
-int INITIAL_VECTOR_LENGTH = 8;
-
 struct Vector {
     int len;
     int cap;
@@ -13,8 +11,8 @@ struct Vector {
 Vec *vec_new() {
     Vec *vec = calloc(1, sizeof(Vec));
     vec->len = 0;
-    vec->cap = INITIAL_VECTOR_LENGTH;
-    vec->data = calloc(INITIAL_VECTOR_LENGTH, sizeof(Node*));
+    vec->cap = 8;
+    vec->data = calloc(8, sizeof(Node*));
     return vec;
 }
 
