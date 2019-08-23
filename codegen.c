@@ -2,6 +2,8 @@
 
 #include "ccatd.h"
 
+char *arg_regs[6] = { "rdi", "rsi", "rdx", "rcx", "r8", "r9", };
+
 void gen(Node*);
 void gen_stmt(Node*);
 bool is_expr(Node_kind);
@@ -108,10 +110,17 @@ void gen(Node *node) {
     }
 
     if (node->kind == ND_CALL) {
+        int arg_len = vec_len(node->block);
+        for (int i = 0; i < arg_len; i++)
+            gen(vec_at(node->block, i));
+        for (int i = arg_len-1; i >= 0; i--)
+            printf("  pop %s\n", arg_regs[i]);
+        printf("  and rsp, -16\n");
         printf("  call ");
         for (int i = 0; i < node->len; i++)
             putc(node->func[i], stdout);
         printf("\n");
+        printf("  push rax\n");
         return;
     }
 

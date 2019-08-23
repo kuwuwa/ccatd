@@ -73,7 +73,7 @@ struct Node {
     Node *lhs;      // binary operators
     Node *rhs;      // binary operators
     Node *body;     // ND_WHILE, ND_FOR
-    Vec *block;     // ND_BLOCK
+    Vec *block;     // ND_BLOCK, ND_CALL
     int val;        // ND_NUM
     int offset;     // ND_LVAR
     char *func;    // ND_CALL

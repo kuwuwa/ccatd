@@ -34,7 +34,7 @@ Vec *tokenize(char *p) {
 
         if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' ||
                 *p == '<' || *p == '>' || *p == '=' || *p == ';' ||
-                *p == '{' || *p == '}') {
+                *p == '{' || *p == '}' || *p == ',') {
             vec_push(vec, new_token(TK_KWD, p, 1));
             p += 1;
             continue;
@@ -148,6 +148,7 @@ Node *add();
 Node *mul();
 Node *unary();
 Node *term();
+Vec *args();
 
 Vec *block() {
     Vec *vec = vec_new();
@@ -293,12 +294,13 @@ Node *term() {
     Token *tk = consume(TK_IDT);
     if (tk) { // ident . ("(" ")")?
         if (consume_keyword("(")) {
-            expect_keyword(")");
+            Vec *vec = args();
 
             Node *node = calloc(1, sizeof(Node));
             node->kind = ND_CALL;
             node->func = tk->str;
             node->len = tk->len;
+            node->block = vec;
             return node;
         }
 
@@ -320,10 +322,21 @@ Node *term() {
     }
 
     tk = consume(TK_NUM);
-    if (!tk) {
+    if (!tk)
         error("invalid expression or statement");
-    }
 
     Node *node = new_node_num(tk->val);
     return node;
+}
+
+Vec *args() {
+    Vec *vec = vec_new();
+    if (consume_keyword(")"))
+        return vec;
+    vec_push(vec, expr());
+    while (!consume_keyword(")")) {
+        expect_keyword(",");
+        vec_push(vec, expr());
+    }
+    return vec;
 }

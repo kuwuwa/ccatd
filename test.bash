@@ -51,5 +51,6 @@ try_return 105 'a = 3; if (a < 2) a = 2; else a = 5; b = 10; if (a < b) b = 100;
 try_return 55 'a = 11; sum = 0; while (a > 0) sum = sum + (a = a - 1); sum;'
 try_return 10 'a = 10; while (1 > 2) a = 100; a;'
 try_return 120 'b = 1; for (a = 1; a <= 5; a = a + 1) b = b * a; b;'
+try_return 70 'a = 5; a * bar(a - 9, 2 - a, -2);'
 try_stdout "OK" 'foo();'
 echo "Accepted!!"
