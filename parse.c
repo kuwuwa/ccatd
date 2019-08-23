@@ -291,7 +291,17 @@ Node *term() {
     }
 
     Token *tk = consume(TK_IDT);
-    if (tk) {
+    if (tk) { // ident . ("(" ")")?
+        if (consume_keyword("(")) {
+            expect_keyword(")");
+
+            Node *node = calloc(1, sizeof(Node));
+            node->kind = ND_CALL;
+            node->func = tk->str;
+            node->len = tk->len;
+            return node;
+        }
+
         Lvar *var = find_lvar(tk);
         if (var == NULL) {
             var = calloc(1, sizeof(Lvar));

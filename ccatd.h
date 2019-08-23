@@ -27,7 +27,7 @@ typedef enum {
     TK_IF,
     TK_ELSE,
     TK_WHILE,
-    TK_FOR
+    TK_FOR,
 } Token_kind;
 
 struct Token {
@@ -63,6 +63,7 @@ typedef enum {
     ND_WHILE,
     ND_FOR,
     ND_BLOCK,
+    ND_CALL,
 } Node_kind;
 
 typedef struct Node Node;
@@ -72,9 +73,11 @@ struct Node {
     Node *lhs;      // binary operators
     Node *rhs;      // binary operators
     Node *body;     // ND_WHILE, ND_FOR
-    Vec *block;       // ND_BLOCK
+    Vec *block;     // ND_BLOCK
     int val;        // ND_NUM
     int offset;     // ND_LVAR
+    char *func;    // ND_CALL
+    int len;        // ND_CALL
 };
 
 typedef struct Lvar Lvar;

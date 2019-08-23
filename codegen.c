@@ -107,6 +107,14 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_CALL) {
+        printf("  call ");
+        for (int i = 0; i < node->len; i++)
+            putc(node->func[i], stdout);
+        printf("\n");
+        return;
+    }
+
     gen(node->lhs);
     gen(node->rhs);
 

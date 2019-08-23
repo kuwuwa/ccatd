@@ -1,6 +1,6 @@
 
 CC := gcc
-CFLAGS := -std=c11 -g -static -Wall -Werror
+CFLAGS := -std=c11 -g -c -static -Wall -Werror
 LDFLAGS :=
 
 SRCS := $(wildcard *.c)
@@ -10,7 +10,7 @@ ccatd: $(OBJS)
 	$(CC) -o ccatd $(OBJS) $(LDFLAGS)
 
 test: ccatd
-	sh ./test.sh
+	bash ./test.bash
 
 clean:
 	rm -f ccatd $(patsubst %.c,%.o,$(SRCS)) _*
