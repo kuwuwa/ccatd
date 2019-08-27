@@ -12,27 +12,19 @@ int main(int argc, char **argv) {
 
     tokens = tokenize(argv[1]);
 
-    locals = calloc(1, sizeof(Lvar));
-    locals->next = NULL;
-    locals->len = -1;
-    locals->offset = 0;
+    empty = calloc(1, sizeof(Lvar));
+    empty->next = NULL;
+    empty->len = -1;
+    empty->offset = 0;
 
-    code = block();
+    code = parse();
 
     printf(".intel_syntax noprefix\n"
-           ".global main\n"
-           "main:\n"
-           "  push rbp\n"
-           "  mov rbp, rsp\n");
-    printf("  sub rsp, %d\n", locals->offset);
+           ".global main\n");
 
     int len = vec_len(code);
     for (int i = 0; i < len; i++)
-        gen_stmt(vec_at(code, i));
-
-    printf("  mov rsp, rbp\n");
-    printf("  pop rbp\n");
-    printf("  ret\n");
+        gen_func(vec_at(code, i));
     return 0;
 }
 

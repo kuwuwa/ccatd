@@ -112,6 +112,14 @@ Token *consume(Token_kind kind) {
     return tk;
 }
 
+Token *expect(Token_kind kind) {
+    Token *tk = vec_at(tokens, index);
+    if (tk->kind != kind)
+        error("expected %s\n", kind);
+    index++;
+    return tk;
+}
+
 void expect_keyword(char* str) {
     Token *tk = vec_at(tokens, index);
     if (tk->kind != TK_KWD || strlen(str) != tk->len || memcmp(str, tk->str, tk->len))
@@ -122,7 +130,6 @@ void expect_keyword(char* str) {
 // parse
 
 Vec *code;
-Lvar *locals = NULL;
 
 Node *new_op(Node_kind kind, Node* lhs, Node* rhs) {
     Node *node = calloc(1, sizeof(Node));
@@ -139,6 +146,8 @@ Node *new_node_num(int v) {
     return node;
 }
 
+Func *func();
+Vec *params();
 Node *stmt();
 Vec *block();
 Node *expr();
@@ -149,6 +158,48 @@ Node *mul();
 Node *unary();
 Node *term();
 Vec *args();
+
+Vec *parse() {
+    Vec *code = vec_new();
+    int len = vec_len(tokens);
+    for (Func *fun; index < len; vec_push(code, fun)) {
+        locals = empty;
+        fun = func();
+    }
+    return code;
+}
+
+Func *func() {
+    Token *tk = consume(TK_IDT);
+    if (!tk) {
+        error("invalid function definition\n");
+    }
+    Vec *par = params();
+    for (int i = 0; i < vec_len(par); i++)
+        find_or_push_lvar(vec_at(par, i));
+    Vec *blk = block();
+
+    Func *func = calloc(1, sizeof(Func));
+    func->name = tk->str;
+    func->len = tk->len;
+    func->params = par;
+    func->block = blk;
+    func->offset = locals->offset;
+    return func;
+}
+
+Vec *params() {
+    expect_keyword("(");
+    Vec *vec = vec_new();
+    if (consume_keyword(")"))
+        return vec;
+    vec_push(vec, expect(TK_IDT));
+    while (!consume_keyword(")")) {
+        expect_keyword(",");
+        vec_push(vec, expect(TK_IDT));
+    }
+    return vec;
+}
 
 Vec *block() {
     Vec *vec = vec_new();
@@ -276,14 +327,6 @@ Node *unary() {
     return term();
 }
 
-Lvar *find_lvar(Token *token) {
-    for (Lvar *var = locals; var; var = var->next) {
-        if (token->len == var->len && memcmp(token->str, var->name, token->len) == 0)
-            return var;
-    }
-    return NULL;
-}
-
 Node *term() {
     if (consume_keyword("(")) {
         Node *node = expr();
@@ -298,26 +341,19 @@ Node *term() {
 
             Node *node = calloc(1, sizeof(Node));
             node->kind = ND_CALL;
-            node->func = tk->str;
+            node->name = tk->str;
             node->len = tk->len;
             node->block = vec;
             return node;
         }
 
-        Lvar *var = find_lvar(tk);
-        if (var == NULL) {
-            var = calloc(1, sizeof(Lvar));
-            var->name = tk->str;
-            var->len = tk->len;
-            var->offset = locals->offset + 8;
-            var->next = locals;
-
-            locals = var;
-        }
+        Lvar *lvar = find_or_push_lvar(tk);
 
         Node *node = calloc(1, sizeof(Node));
         node->kind = ND_LVAR;
-        node->offset = var->offset;
+        node->name = tk->str;
+        node->len = tk->len;
+        node->val = lvar->offset;
         return node;
     }
 
@@ -340,3 +376,23 @@ Vec *args() {
     }
     return vec;
 }
+
+Lvar *find_or_push_lvar(Token *token) {
+    if (token->kind != TK_IDT)
+        error("find_or_push_lvar: lvar expected\n");
+
+    for (Lvar *var = locals; var; var = var->next) {
+        if (token->len == var->len && memcmp(token->str, var->name, token->len) == 0)
+            return var;
+    }
+
+    Lvar *var = calloc(1, sizeof(Lvar));
+    var->name = token->str;
+    var->len = token->len;
+    var->offset = locals->offset + 8;
+    var->next = locals;
+
+    locals = var;
+    return var;
+}
+

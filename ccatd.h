@@ -44,6 +44,14 @@ extern Vec *tokens;
 
 // parse
 
+typedef struct Lvar Lvar;
+struct Lvar {
+    Lvar *next;
+    char *name;
+    int len;
+    int offset;
+};
+
 typedef enum {
     ND_NUM,
     ND_LVAR,
@@ -75,22 +83,24 @@ struct Node {
     Node *body;     // ND_WHILE, ND_FOR
     Vec *block;     // ND_BLOCK, ND_CALL
     int val;        // ND_NUM
-    int offset;     // ND_LVAR
-    char *func;    // ND_CALL
+    char *name;     // ND_CALL, ND_LVAR
     int len;        // ND_CALL
 };
 
-typedef struct Lvar Lvar;
-struct Lvar {
-    Lvar *next;
+typedef struct Func Func;
+struct Func {
     char *name;
     int len;
+    Vec *params;
+    Vec *block;
     int offset;
 };
 
-extern Lvar *locals;
+Lvar *locals;
+Lvar *empty;
 
-Vec* block();
+Vec* parse();
+Lvar *find_or_push_lvar(Token*);
 
 // containers
 
@@ -103,6 +113,4 @@ void *vec_at(Vec *vec, int idx);
 
 extern Vec *code;
 
-void gen(Node *node);
-void gen_stmt(Node* node);
-bool is_expr(Node_kind);
+void gen_func(Func *func);
