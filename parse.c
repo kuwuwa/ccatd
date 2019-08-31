@@ -112,6 +112,13 @@ Token *consume(Token_kind kind) {
     return tk;
 }
 
+Token *lookahead(Token_kind kind) {
+    Token *tk = vec_at(tokens, index);
+    if (tk->kind != kind)
+        return NULL;
+    return tk;
+}
+
 Token *expect(Token_kind kind) {
     Token *tk = vec_at(tokens, index);
     if (tk->kind != kind)
@@ -125,6 +132,20 @@ void expect_keyword(char* str) {
     if (tk->kind != TK_KWD || strlen(str) != tk->len || memcmp(str, tk->str, tk->len))
         error("expected \"%s\"", str);
     index++;
+}
+
+bool consume_int_type() {
+    Token *tk = lookahead(TK_IDT);
+    bool consumed = tk != NULL && tk->len == 3 && !memcmp(tk->str, "int", 3);
+    if (consumed)
+        index++;
+    return consumed;
+}
+
+void expect_int_type() {
+    if (consume_int_type())
+        return;
+    error("`int' expected");
 }
 
 // parse
@@ -159,6 +180,9 @@ Node *unary();
 Node *term();
 Vec *args();
 
+Lvar *find_lvar(Token*);
+Lvar *push_lvar(Token*);
+
 Vec *parse() {
     Vec *code = vec_new();
     int len = vec_len(tokens);
@@ -170,13 +194,14 @@ Vec *parse() {
 }
 
 Func *func() {
+    expect_int_type();
     Token *tk = consume(TK_IDT);
     if (!tk) {
         error("invalid function definition\n");
     }
     Vec *par = params();
     for (int i = 0; i < vec_len(par); i++)
-        find_or_push_lvar(vec_at(par, i));
+        push_lvar(vec_at(par, i));
     Vec *blk = block();
 
     Func *func = calloc(1, sizeof(Func));
@@ -193,9 +218,11 @@ Vec *params() {
     Vec *vec = vec_new();
     if (consume_keyword(")"))
         return vec;
+    expect_int_type();
     vec_push(vec, expect(TK_IDT));
     while (!consume_keyword(")")) {
         expect_keyword(",");
+        expect_int_type();
         vec_push(vec, expect(TK_IDT));
     }
     return vec;
@@ -253,6 +280,21 @@ Node *stmt() {
         node = calloc(1, sizeof(Node));
         node->kind = ND_BLOCK;
         node->block = vec;
+    } else if (consume_int_type()) {
+        Token *id = expect(TK_IDT);
+        expect_keyword("=");
+        Node *rhs = expr();
+        expect_keyword(";");
+        Lvar *lvar = find_lvar(id);
+        if (lvar == NULL)
+            lvar = push_lvar(id);
+
+        Node *lhs = calloc(1, sizeof(Node));
+        lhs->kind = ND_LVAR;
+        lhs->name = id->str;
+        lhs->len = id->len;
+        lhs->val = lvar->offset;
+        node = new_op(ND_ASGN, lhs, rhs);
     } else {
         node = expr();
         expect_keyword(";");
@@ -359,7 +401,12 @@ Node *term() {
             return node;
         }
 
-        Lvar *lvar = find_or_push_lvar(tk);
+        Lvar *lvar = find_lvar(tk);
+        if (lvar == NULL) {
+            fprintf(stderr, "variable not defined: ");
+            fnputs(stdout, tk->str, tk->len);
+            error("\n");
+        }
 
         Node *node = calloc(1, sizeof(Node));
         node->kind = ND_LVAR;
@@ -389,15 +436,19 @@ Vec *args() {
     return vec;
 }
 
-Lvar *find_or_push_lvar(Token *token) {
+Lvar *find_lvar(Token *token) {
     if (token->kind != TK_IDT)
-        error("find_or_push_lvar: lvar expected\n");
+        error("find_lvar: lvar expected\n");
 
     for (Lvar *var = locals; var; var = var->next) {
         if (token->len == var->len && memcmp(token->str, var->name, token->len) == 0)
             return var;
     }
 
+    return NULL;
+}
+
+Lvar *push_lvar(Token *token) {
     Lvar *var = calloc(1, sizeof(Lvar));
     var->name = token->str;
     var->len = token->len;
@@ -407,4 +458,3 @@ Lvar *find_or_push_lvar(Token *token) {
     locals = var;
     return var;
 }
-

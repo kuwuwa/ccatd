@@ -9,7 +9,6 @@ void gen_stmt(Node*);
 void gen_func(Func*);
 void gen_lval(Node*);
 bool is_expr(Node_kind);
-void nputs(char *str, int n);
 
 // generate
 
@@ -120,7 +119,7 @@ void gen(Node *node) {
             printf("  sub rsp, 8\n"); // 16-byte boundary
         printf("  and rsp, -16\n");
         printf("  call ");
-        nputs(node->name, node->len);
+        fnputs(stdout, node->name, node->len);
         printf("\n");
         if (stack_depth % 16 != 0)
             printf("  add rsp, 8\n"); // 16-byte boundary
@@ -195,7 +194,7 @@ void gen_stmt(Node* node) {
 }
 
 void gen_func(Func* func) {
-    nputs(func->name, func->len);
+    fnputs(stdout, func->name, func->len);
     printf(":\n");
     printf("  push rbp\n"
            "  mov rbp, rsp\n");
@@ -233,9 +232,4 @@ bool is_expr(Node_kind kind) {
     for (int i = 0; i < sizeof(expr_kinds) / sizeof(Node_kind); i++)
         if (expr_kinds[i] == kind) return true;
     return false;
-}
-
-void nputs(char *str, int n) {
-    for (int i = 0; i < n; i++)
-        putc(str[i], stdout);
 }

@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdlib.h>
 
 // struct declarations
 
@@ -14,6 +15,7 @@ struct Vector;
 // util
 
 void error(char *fmt, ...);
+void fnputs(FILE* fp, char *str, int n);
 
 // tokenize
 
@@ -103,7 +105,6 @@ Lvar *locals;
 Lvar *empty;
 
 Vec* parse();
-Lvar *find_or_push_lvar(Token*);
 
 // containers
 

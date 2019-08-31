@@ -9,3 +9,8 @@ void error(char *fmt, ...) {
     fprintf(stderr, "\n");
     exit(1);
 }
+
+void fnputs(FILE* fp, char *str, int n) {
+    for (int i = 0; i < n; i++)
+        putc(str[i], fp);
+}
