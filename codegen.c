@@ -7,6 +7,7 @@ char *arg_regs[6] = { "rdi", "rsi", "rdx", "rcx", "r8", "r9", };
 void gen(Node*);
 void gen_stmt(Node*);
 void gen_func(Func*);
+void gen_lval(Node*);
 bool is_expr(Node_kind);
 void nputs(char *str, int n);
 
@@ -33,16 +34,8 @@ void gen(Node *node) {
     }
 
     if (node->kind == ND_ASGN) {
-        if (node->lhs->kind != ND_LVAR)
-            error("left hand side of an assignment should be a left value");
-
-        printf("  mov rax, rbp\n");
-        printf("  sub rax, %d\n", node->lhs->val);
-        printf("  push rax\n");
-        stack_depth += 8;
-
+        gen_lval(node->lhs);
         gen(node->rhs);
-
         printf("  pop rax\n"
                "  pop rdi\n"
                "  mov [rdi], rax\n"
@@ -136,6 +129,19 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_ADDR) {
+        gen_lval(node->lhs);
+        return;
+    }
+
+    if (node->kind == ND_DEREF) {
+        gen(node->lhs);
+        printf("  pop rax\n"
+               "  mov rax, [rax]\n"
+               "  push rax\n");
+        return;
+    }
+
     gen(node->lhs);
     gen(node->rhs);
 
@@ -202,6 +208,21 @@ void gen_func(Func* func) {
     printf("  mov rsp, rbp\n"
            "  pop rbp\n"
            "  ret\n");
+}
+
+void gen_lval(Node *node) {
+    if (node->kind == ND_LVAR) {
+        printf("  mov rax, rbp\n");
+        printf("  sub rax, %d\n", node->val);
+        printf("  push rax\n");
+        stack_depth += 8;
+        return;
+    } else if (node->kind == ND_DEREF) {
+        gen(node->lhs);
+        return;
+    }
+
+    error("term should be a left value");
 }
 
 bool is_expr(Node_kind kind) {

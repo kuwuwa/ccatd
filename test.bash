@@ -62,4 +62,6 @@ try_return 13 'calc1(x,y) { return x * x + y * y; } main(){return calc1(2, 3);}'
 try_return 20 'f(x) { return 10-x; } main() { return 10*f(8); }'
 try_return 86 'f(x){return x*4;} g(x,y){z=x+f(x+y); return z;} main(){return g(10,9);}'
 try_return 55 'fib(x){if(x<=1)return x;return fib(x-1)+fib(x-2);} main(){return fib(10);}'
+try_return 10 'main() { a = 10; b = 20; c = &b + 8; return *c; }'
+try_return 3 'inc(x){*x=*x+1;} main(){ a = 0; inc(&a); inc(&a); inc(&a); return a; }'
 echo "Accepted!!"

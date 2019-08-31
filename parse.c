@@ -34,7 +34,7 @@ Vec *tokenize(char *p) {
 
         if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' ||
                 *p == '<' || *p == '>' || *p == '=' || *p == ';' ||
-                *p == '{' || *p == '}' || *p == ',') {
+                *p == '{' || *p == '}' || *p == ',' || *p == '&') {
             vec_push(vec, new_token(TK_KWD, p, 1));
             p += 1;
             continue;
@@ -324,6 +324,18 @@ Node *unary() {
         return term();
     if (consume_keyword("-"))
         return new_op(ND_SUB, new_node_num(0), term());
+    if (consume_keyword("&")) {
+        Node *node = calloc(1, sizeof(Node));
+        node->kind = ND_ADDR;
+        node->lhs = unary();
+        return node;
+    }
+    if (consume_keyword("*")) {
+        Node *node = calloc(1, sizeof(Node));
+        node->kind = ND_DEREF;
+        node->lhs = unary();
+        return node;
+    }
     return term();
 }
 
