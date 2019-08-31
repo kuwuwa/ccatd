@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 // struct declarations
@@ -11,6 +12,19 @@ struct Node;
 
 typedef struct Vector Vec;
 struct Vector;
+
+typedef struct Func Func;
+struct Func;
+
+typedef struct Type Type;
+struct Type;
+
+// containers
+
+Vec *vec_new();
+void vec_push(Vec *vec, void *node);
+int vec_len(Vec *vec);
+void *vec_at(Vec *vec, int idx);
 
 // util
 
@@ -46,14 +60,6 @@ extern Vec *tokens;
 
 // parse
 
-typedef struct Lvar Lvar;
-struct Lvar {
-    Lvar *next;
-    char *name;
-    int len;
-    int offset;
-};
-
 typedef enum {
     ND_NUM,
     ND_LVAR,
@@ -79,7 +85,6 @@ typedef enum {
     ND_DEREF,
 } Node_kind;
 
-typedef struct Node Node;
 struct Node {
     Node_kind kind;
     Node *cond;     // ND_IF, ND_WHILE
@@ -87,31 +92,32 @@ struct Node {
     Node *rhs;      // binary operators
     Node *body;     // ND_WHILE, ND_FOR
     Vec *block;     // ND_BLOCK, ND_CALL
-    int val;        // ND_NUM
+    int val;        // ND_NUM, ND_LVAR
     char *name;     // ND_CALL, ND_LVAR
     int len;        // ND_CALL
+    Type *type;
 };
 
-typedef struct Func Func;
 struct Func {
     char *name;
     int len;
     Vec *params;
     Vec *block;
     int offset;
+    Type *ret_type;
 };
 
-Lvar *locals;
-Lvar *empty;
+struct Type {
+    enum { TY_INT, TY_PTR } ty;
+    Type* ptr_to;
+};
+
+Type *type_int;
+
+Vec *locals;
 
 Vec* parse();
 
-// containers
-
-Vec *vec_new();
-void vec_push(Vec *vec, void *node);
-int vec_len(Vec *vec);
-void *vec_at(Vec *vec, int idx);
 
 // codegen
 

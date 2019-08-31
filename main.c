@@ -12,12 +12,10 @@ int main(int argc, char **argv) {
 
     tokens = tokenize(argv[1]);
 
-    empty = calloc(1, sizeof(Lvar));
-    empty->next = NULL;
-    empty->len = -1;
-    empty->offset = 0;
-
     code = parse();
+
+    type_int = calloc(1, sizeof(Type));
+    type_int->ty = TY_INT;
 
     printf(".intel_syntax noprefix\n"
            ".global main\n");
