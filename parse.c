@@ -315,7 +315,7 @@ Node *stmt() {
         if (lhs == NULL)
             lhs = push_lvar(ty, id);
 
-        node = new_op(ND_ASGN, lhs, rhs);
+        node = new_op(ND_VARDECL, lhs, rhs);
     } else {
         node = expr();
         expect_keyword(";");

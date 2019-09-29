@@ -43,6 +43,50 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_CALL) {
+        int arg_len = vec_len(node->block);
+        for (int i = 0; i < arg_len; i++)
+            gen(vec_at(node->block, i));
+        for (int i = arg_len-1; i >= 0; i--)
+            printf("  pop %s\n", arg_regs[i]);
+        stack_depth -= 8 * arg_len;
+        if (stack_depth % 16 != 0)
+            printf("  sub rsp, 8\n"); // 16-byte boundary
+        printf("  and rsp, -16\n");
+        printf("  call ");
+        fnputs(stdout, node->name, node->len);
+        printf("\n");
+        if (stack_depth % 16 != 0)
+            printf("  add rsp, 8\n"); // 16-byte boundary
+        printf("  push rax\n");
+        stack_depth += 8;
+        return;
+    }
+
+    if (node->kind == ND_ADDR) {
+        gen_lval(node->lhs);
+        return;
+    }
+
+    if (node->kind == ND_DEREF) {
+        gen(node->lhs);
+        printf("  pop rax\n"
+               "  mov rax, [rax]\n"
+               "  push rax\n");
+        return;
+    }
+
+    if (node->kind == ND_VARDECL) {
+        gen_lval(node->lhs);
+        gen(node->rhs);
+        printf("  pop rax\n"
+               "  pop rdi\n"
+               "  mov [rdi], rax\n"
+               "  push rax\n");
+        stack_depth += 8;
+        return;
+    }
+
     if (node->kind == ND_RETURN) {
         gen(node->lhs);
         printf("  pop rax\n"
@@ -105,39 +149,6 @@ void gen(Node *node) {
         int len = vec_len(node->block);
         for (int i = 0; i < len; i++)
             gen_stmt(vec_at(node->block, i));
-        return;
-    }
-
-    if (node->kind == ND_CALL) {
-        int arg_len = vec_len(node->block);
-        for (int i = 0; i < arg_len; i++)
-            gen(vec_at(node->block, i));
-        for (int i = arg_len-1; i >= 0; i--)
-            printf("  pop %s\n", arg_regs[i]);
-        stack_depth -= 8 * arg_len;
-        if (stack_depth % 16 != 0)
-            printf("  sub rsp, 8\n"); // 16-byte boundary
-        printf("  and rsp, -16\n");
-        printf("  call ");
-        fnputs(stdout, node->name, node->len);
-        printf("\n");
-        if (stack_depth % 16 != 0)
-            printf("  add rsp, 8\n"); // 16-byte boundary
-        printf("  push rax\n");
-        stack_depth += 8;
-        return;
-    }
-
-    if (node->kind == ND_ADDR) {
-        gen_lval(node->lhs);
-        return;
-    }
-
-    if (node->kind == ND_DEREF) {
-        gen(node->lhs);
-        printf("  pop rax\n"
-               "  mov rax, [rax]\n"
-               "  push rax\n");
         return;
     }
 

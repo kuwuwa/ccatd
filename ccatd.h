@@ -61,10 +61,10 @@ extern Vec *tokens;
 // parse
 
 typedef enum {
+    // expressions
     ND_NUM,
     ND_LVAR,
     ND_ASGN,
-
     ND_ADD,
     ND_SUB,
     ND_MUL,
@@ -73,16 +73,17 @@ typedef enum {
     ND_NEQ,
     ND_LT,
     ND_LTE,
+    ND_CALL,
+    ND_ADDR,
+    ND_DEREF,
 
+    // statements
+    ND_VARDECL,
     ND_RETURN,
     ND_IF,
     ND_WHILE,
     ND_FOR,
     ND_BLOCK,
-    ND_CALL,
-
-    ND_ADDR,
-    ND_DEREF,
 } Node_kind;
 
 struct Node {
