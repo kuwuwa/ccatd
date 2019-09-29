@@ -119,6 +119,9 @@ Vec *locals;
 
 Vec* parse();
 
+// semantic analysis
+
+void sema_func(Func *func);
 
 // codegen
 

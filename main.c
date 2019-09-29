@@ -17,6 +17,10 @@ int main(int argc, char **argv) {
     type_int = calloc(1, sizeof(Type));
     type_int->ty = TY_INT;
 
+    for (int i = 0; i < vec_len(code); i++) {
+        sema_func(vec_at(code, i));
+    }
+
     printf(".intel_syntax noprefix\n"
            ".global main\n");
 
