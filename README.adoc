@@ -2,3 +2,24 @@ ccatd
 -----
 
 toy C compiler
+
+=== spec
+
+* Arithmetic expression
+  * +, -, *, /, <, >, <=, >=, 
+* variable (arbitrary length of name)
+* assignment
+* return
+* if else
+* while
+* for
+* block
+* pointer (address, dereference)
+* `type := int | pointer of type`
+* function call & definition (up to 6 arguments)
+
+=== to be implemented
+
+* Remove the limit of argument length
+* Type check
+* ...
