@@ -17,9 +17,11 @@ toy C compiler
 * pointer (address, dereference)
 * `type := int | pointer of type`
 * function call & definition (up to 6 arguments)
+* addition/subtraction for pointers
 
 === to be implemented
 
+* Fix the issue of memory size
 * Remove the limit of argument length
 * Type check
 * ...

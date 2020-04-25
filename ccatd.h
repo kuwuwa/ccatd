@@ -23,6 +23,7 @@ struct Type;
 
 Vec *vec_new();
 void vec_push(Vec *vec, void *node);
+void vec_pop(Vec *vec);
 int vec_len(Vec *vec);
 void *vec_at(Vec *vec, int idx);
 
@@ -108,18 +109,28 @@ struct Func {
     Type *ret_type;
 };
 
+Vec *locals;
+
+Vec* parse();
+
+// type
+
 struct Type {
     enum { TY_INT, TY_PTR } ty;
     Type* ptr_to;
 };
 
-Type *type_int;
+extern Type *type_int;
 
-Vec *locals;
+Type *ptr_of(Type *type);
 
-Vec* parse();
+bool is_int(Type *type);
+
+bool is_ptr(Type *type);
 
 // semantic analysis
+
+extern Vec *func_env;
 
 void sema_func(Func *func);
 

@@ -1,14 +1,16 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "ccatd.h"
 
-char *arg_regs[6] = { "rdi", "rsi", "rdx", "rcx", "r8", "r9", };
+char *arg_regs64[6] = { "rdi", "rsi", "rdx", "rcx", "r8", "r9", };
 
 void gen(Node*);
 void gen_stmt(Node*);
 void gen_func(Func*);
 void gen_lval(Node*);
 bool is_expr(Node_kind);
+void gen_coeff_ptr(Type*, Type*);
 
 // generate
 
@@ -35,10 +37,11 @@ void gen(Node *node) {
     if (node->kind == ND_ASGN) {
         gen_lval(node->lhs);
         gen(node->rhs);
+        char *ax = "rax\0";
         printf("  pop rax\n"
-               "  pop rdi\n"
-               "  mov [rdi], rax\n"
-               "  push rax\n");
+               "  pop rdi\n");
+        printf("  mov [rdi], %s\n", ax);
+        printf("  push rax\n");
         stack_depth += 8;
         return;
     }
@@ -48,7 +51,7 @@ void gen(Node *node) {
         for (int i = 0; i < arg_len; i++)
             gen(vec_at(node->block, i));
         for (int i = arg_len-1; i >= 0; i--)
-            printf("  pop %s\n", arg_regs[i]);
+            printf("  pop %s\n", arg_regs64[i]);
         stack_depth -= 8 * arg_len;
         if (stack_depth % 16 != 0)
             printf("  sub rsp, 8\n"); // 16-byte boundary
@@ -79,10 +82,12 @@ void gen(Node *node) {
     if (node->kind == ND_VARDECL) {
         gen_lval(node->lhs);
         gen(node->rhs);
+        char *ax = "rax\0";
+        fflush(stderr);
         printf("  pop rax\n"
-               "  pop rdi\n"
-               "  mov [rdi], rax\n"
-               "  push rax\n");
+               "  pop rdi\n");
+        printf("  mov [rdi], %s\n", ax);
+        printf("  push rax\n");
         stack_depth += 8;
         return;
     }
@@ -142,6 +147,8 @@ void gen(Node *node) {
         gen_stmt(node->rhs);
         printf("  jmp .Lfor%d\n", label_num);
         printf(".Lend_for%d:\n", label_num);
+
+        label_num += 1;
         return;
     }
 
@@ -161,9 +168,11 @@ void gen(Node *node) {
 
     switch (node->kind) {
         case ND_ADD:
+            gen_coeff_ptr(node->lhs->type, node->rhs->type);
             printf("  add rax, rdi\n");
             break;
         case ND_SUB:
+            gen_coeff_ptr(node->lhs->type, node->rhs->type);
             printf("  sub rax, rdi\n");
             break;
         case ND_MUL:
@@ -210,7 +219,7 @@ void gen_func(Func* func) {
     printf("  push rbp\n"
            "  mov rbp, rsp\n");
     for (int i = 0; i < vec_len(func->params); i++)
-        printf("  push %s\n", arg_regs[i]);
+        printf("  push %s\n", arg_regs64[i]);
     printf("  sub rsp, %d\n", func->offset - 8 * vec_len(func->params));
     stack_depth = func->offset;
     for (int i = 0; i < vec_len(func->block); i++)
@@ -244,3 +253,15 @@ bool is_expr(Node_kind kind) {
         if (expr_kinds[i] == kind) return true;
     return false;
 }
+
+void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
+    if (lt->ty == TY_INT && rt->ty == TY_INT) {
+    } else if (lt->ty == TY_INT) {
+        printf("  imul rax, %d\n", (rt->ptr_to->ty == TY_INT ? 4 : 8));
+    } else if (rt->ty == TY_INT) {
+        printf("  imul rdi, %d\n", (lt->ptr_to->ty == TY_INT ? 4 : 8));
+    } else {
+        error("addition/subtraction of two pointers is not allowed");
+    }
+}
+

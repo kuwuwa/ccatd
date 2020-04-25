@@ -166,6 +166,7 @@ Node *new_op(Node_kind kind, Node* lhs, Node* rhs) {
 
 Node *new_node_num(int v) {
     Node *node = calloc(1, sizeof(Node));
+    node->type = type_int;
     node->kind = ND_NUM;
     node->val = v;
     return node;
