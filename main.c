@@ -66,19 +66,22 @@ int main(int argc, char **argv) {
     tokens = tokenize(argv[1]);
 
     init();
+    parse();
 
-    code = parse();
-
-    for (int i = 0; i < vec_len(code); i++) {
-        sema_func(vec_at(code, i));
+    for (int i = 0; i < vec_len(environment->functions); i++) {
+        sema_func(vec_at(environment->functions, i));
     }
 
-    printf(".intel_syntax noprefix\n"
-           ".global main\n");
+    printf("  .intel_syntax noprefix\n"
+           "  .globl main\n");
 
-    int len = vec_len(code);
+    int len = vec_len(environment->functions);
+
+    printf("  .text\n");
     for (int i = 0; i < len; i++)
-        gen_func(vec_at(code, i));
+        gen_func(vec_at(environment->functions, i));
+
+    gen_globals();
     return 0;
 }
 

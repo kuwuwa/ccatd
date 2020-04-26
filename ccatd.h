@@ -19,6 +19,9 @@ struct Func;
 typedef struct Type Type;
 struct Type;
 
+typedef struct Environment Environment;
+struct Environment;
+
 // containers
 
 Vec *vec_new();
@@ -31,6 +34,7 @@ void *vec_at(Vec *vec, int idx);
 
 void error(char *fmt, ...);
 void fnputs(FILE* fp, char *str, int n);
+void debug(char *fmt, ...);
 
 // tokenize
 
@@ -79,6 +83,7 @@ typedef enum {
     ND_DEREF,
     ND_SIZEOF,
     ND_INDEX,
+    ND_GVAR,
 
     // statements
     ND_VARDECL,
@@ -111,9 +116,16 @@ struct Func {
     Type *ret_type;
 };
 
+struct Environment {
+    Vec *functions;
+    Vec *globals;
+};
+
+Environment *environment;
+
 Vec *locals;
 
-Vec* parse();
+void parse();
 
 // type
 
@@ -145,6 +157,6 @@ void sema_func(Func *func);
 
 // codegen
 
-extern Vec *code;
+void gen_globals();
 
 void gen_func(Func *func);

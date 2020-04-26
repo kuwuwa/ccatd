@@ -10,7 +10,7 @@ try_return() {
     echo "compilation failed: \"$2\""
     exit 1
   fi
-  ${CC} -g -o _temp runtime.o _temp.s
+  ${CC} -g -no-pie -o _temp runtime.o _temp.s
   if [ "$?" != 0 ]; then
     echo "link failed: \"$2\""
     exit 1
@@ -79,4 +79,7 @@ try_return 8 'int main() { int *x; return sizeof x; }'
 try_return 12 'int main() { int a[3]; return sizeof(a); }'
 try_return 10 'int main() { int a[4]; *(a+1)=10; return a[1]; }'
 try_return 3 'int main() { int a[2]; *a = 1; *(a + 1) = 2; int *p = a; return *p + *(p + 1); }'
+# global variable
+try_return 9 'int x; int main() { x = 9; return x; }'
+try_return 20 'int x; int y[10]; int main() { x = 2; y[8] = 10; return x * y[8];}'
 echo "Accepted!!"

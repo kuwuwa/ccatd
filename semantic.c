@@ -42,18 +42,14 @@ void sema_func(Func *func) {
 
     vec_push(func_env, func);
 
-    scoped_stack_space = 0;
-    max_scoped_stack_space = 0;
-
     // block
     local_vars = vec_new();
     for (int i = 0; i < params_len; i++) {
         Node* param = vec_at(func->params, i);
+        param->val = 8 * (i + 1);
         vec_push(local_vars, param);
-        int param_size = type_size(param->type);
-        scoped_stack_space += param_size;
     }
-    max_scoped_stack_space = scoped_stack_space;
+    max_scoped_stack_space = scoped_stack_space = 8 * params_len;
 
     sema_block(func->block, func);
     func->offset = max_scoped_stack_space;
@@ -134,6 +130,7 @@ void sema_expr(Node* node) {
     // ND_LVAR,
     if (node->kind == ND_LVAR) {
         Node *resolved = find_lvar_sema(node);
+
         if (resolved == NULL)
             error("undefined variable");
         node->type = resolved->type;
@@ -182,6 +179,9 @@ void sema_expr(Node* node) {
             sema_expr(vec_at(node->block, i));
 
         node->type = f->ret_type;
+        return;
+    }
+    if (node->kind == ND_GVAR) {
         return;
     }
 
@@ -255,7 +255,7 @@ void sema_expr(Node* node) {
 }
 
 void sema_lval(Node *node) {
-    if (node->kind == ND_LVAR || node->kind == ND_DEREF) {
+    if (node->kind == ND_LVAR || node->kind == ND_GVAR || node->kind == ND_DEREF) {
         sema_expr(node);
         return;
     }

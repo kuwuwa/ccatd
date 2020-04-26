@@ -6,6 +6,7 @@
 char *arg_regs64[6] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
 char *arg_regs32[6] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
 
+void gen_globals();
 void gen(Node*);
 void gen_stmt(Node*);
 void gen_func(Func*);
@@ -14,8 +15,25 @@ bool is_expr(Node_kind);
 void gen_coeff_ptr(Type*, Type*);
 char *ax_of_type(Type*);
 char *di_of_type(Type*);
+char *word_of_type(Type*);
 
-// generate
+// generate global variables
+
+void gen_globals() {
+    printf("  .data\n");
+    for (int i = 0; i < vec_len(environment->globals); i++) {
+        Node *global = vec_at(environment->globals, i);
+
+        printf("  .globl ");
+        fnputs(stdout, global->name, global->len);
+        printf("\n");
+
+        fnputs(stdout, global->name, global->len);
+        printf(":\n  .zero %d\n", type_size(global->type));
+    }
+}
+
+// generate function
 
 int label_num = 0;
 int stack_depth = 0;
@@ -179,6 +197,24 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_GVAR) {
+        if (node->type->ty == TY_ARRAY) {
+            printf("  mov rax, OFFSET FLAT:");
+            fnputs(stdout, node->name, node->len);
+            printf("\n");
+        } else {
+            char *ax = ax_of_type(node->type);
+            char *wo = word_of_type(node->type);
+            printf("  mov %s, %s PTR ", ax, wo);
+            fnputs(stdout, node->name, node->len);
+            printf("[rip]\n");
+        }
+
+        printf("  push rax\n");
+        stack_depth += 8;
+        return;
+    }
+
     gen(node->lhs);
     gen(node->rhs);
 
@@ -257,6 +293,13 @@ void gen_lval(Node *node) {
         printf("  push rax\n");
         stack_depth += 8;
         return;
+    } else if (node->kind == ND_GVAR) {
+        printf("  mov rax, OFFSET FLAT:");
+        fnputs(stdout, node->name, node->len);
+        printf("\n");
+        printf("  push rax\n");
+        stack_depth += 8;
+        return;
     } else if (node->kind == ND_DEREF) {
         gen(node->lhs);
         return;
@@ -299,4 +342,10 @@ char *di_of_type(Type *type) {
     if (type->ty == TY_ARRAY)
         return "rdi";
     return type_size(type) == 8 ? "rdi" : "edi";
+}
+
+char *word_of_type(Type* type) {
+    if (type->ty == TY_ARRAY)
+        return "QWORD";
+    return type_size(type) == 8 ? "QWORD" : "DWORD";
 }

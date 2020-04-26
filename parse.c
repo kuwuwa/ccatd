@@ -128,7 +128,7 @@ Token *lookahead(Token_kind kind) {
 Token *expect(Token_kind kind) {
     Token *tk = vec_at(tokens, index);
     if (tk->kind != kind)
-        error("expected %s\n", kind);
+        error("%s expected\n", kind);
     index++;
     return tk;
 }
@@ -136,7 +136,7 @@ Token *expect(Token_kind kind) {
 void expect_keyword(char* str) {
     Token *tk = vec_at(tokens, index);
     if (tk->kind != TK_KWD || strlen(str) != tk->len || memcmp(str, tk->str, tk->len))
-        error("expected \"%s\"", str);
+        error("\"%s\" expected", str);
     index++;
 }
 
@@ -160,8 +160,6 @@ void expect_int_type() {
 
 // parse
 
-Vec *code;
-
 Node *new_op(Node_kind kind, Node* lhs, Node* rhs) {
     Node *node = calloc(1, sizeof(Node));
     node->kind = kind;
@@ -178,9 +176,10 @@ Node *new_node_num(int v) {
     return node;
 }
 
+void toplevel();
+Func *func(Type *ty, Token *name);
 Type *type();
 void type_array(Type**);
-Func *func();
 Vec *params();
 Node *stmt();
 Vec *block();
@@ -193,17 +192,57 @@ Node *unary();
 Node *term();
 Vec *args();
 
-Node *find_lvar(Token*);
+Node *find_var(Token*);
 Node *push_lvar(Type*, Token*);
 
-Vec *parse() {
-    Vec *code = vec_new();
+void parse() {
+    environment = calloc(1, sizeof(Environment));
+    environment->functions = vec_new();
+    environment->globals = vec_new();
+
     int len = vec_len(tokens);
-    for (Func *fun; index < len; vec_push(code, fun)) {
+    while (index < len)
+        toplevel();
+}
+
+void toplevel() {
+    Type *ty = type();
+    Token *tk = expect(TK_IDT);
+    if (consume_keyword("(")) {
         locals = vec_new();
-        fun = func();
+        Func *f = func(ty, tk);
+        vec_push(environment->functions, f);
+    } else {
+        Node *node = calloc(1, sizeof(Node));
+        node->kind = ND_GVAR;
+        node->name = tk->str;
+        node->len = tk->len;
+
+        while (consume_keyword("[")) {
+            Token *len = expect(TK_NUM);
+            expect_keyword("]");
+
+            ty = array_of(ty, len->val);
+        }
+        expect_keyword(";");
+
+        node->type = ty;
+        vec_push(environment->globals, node);
     }
-    return code;
+}
+
+Func *func(Type *ty, Token *name) {
+    Vec *par = params();
+    Vec *blk = block();
+
+    Func *func = calloc(1, sizeof(Func));
+    func->name = name->str;
+    func->len = name->len;
+    func->params = par;
+    func->block = blk;
+
+    func->ret_type = ty;
+    return func;
 }
 
 Type *type() {
@@ -219,27 +258,7 @@ Type *type() {
     return typ;
 }
 
-Func *func() {
-    Type *ty = type();
-    Token *tk = consume(TK_IDT);
-    if (!tk) {
-        error("invalid function definition\n");
-    }
-    Vec *par = params();
-    Vec *blk = block();
-
-    Func *func = calloc(1, sizeof(Func));
-    func->name = tk->str;
-    func->len = tk->len;
-    func->params = par;
-    func->block = blk;
-
-    func->ret_type = ty;
-    return func;
-}
-
 Vec *params() {
-    expect_keyword("(");
     Vec *vec = vec_new();
     if (consume_keyword(")"))
         return vec;
@@ -317,7 +336,7 @@ Node *stmt() {
         Node *rhs = consume_keyword("=") ? expr() : NULL;
         expect_keyword(";");
 
-        Node *lhs = find_lvar(id);
+        Node *lhs = find_var(id);
         if (lhs == NULL)
             lhs = push_lvar(typ, id);
 
@@ -441,7 +460,7 @@ Node *term() {
             node->len = tk->len;
             node->block = vec;
         } else { // variable
-            node = find_lvar(tk);
+            node = find_var(tk);
             if (node == NULL) {
                 fprintf(stderr, "variable not defined: ");
                 fnputs(stdout, tk->str, tk->len);
@@ -483,13 +502,20 @@ Vec *args() {
     return vec;
 }
 
-Node *find_lvar(Token *token) {
+Node *find_var(Token *token) {
     if (token->kind != TK_IDT)
         error("find_lvar: lvar expected\n");
 
-    int len = vec_len(locals);
-    for (int i = 0; i < len; i++) {
+    int locals_len = vec_len(locals);
+    for (int i = 0; i < locals_len; i++) {
         Node *var = vec_at(locals, i);
+        if (token->len == var->len && memcmp(token->str, var->name, token->len) == 0)
+            return var;
+    }
+
+    int globals_len = vec_len(environment->globals);
+    for (int i = 0; i < globals_len; i++) {
+        Node *var = vec_at(environment->globals, i);
         if (token->len == var->len && memcmp(token->str, var->name, token->len) == 0)
             return var;
     }
@@ -503,7 +529,6 @@ Node *push_lvar(Type *ty, Token *tk) {
     var->name = tk->str;
     var->type = ty;
     var->len = tk->len;
-    var->val = 8 * (vec_len(locals) + 1);
 
     vec_push(locals, var);
     return var;

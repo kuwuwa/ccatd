@@ -1,6 +1,9 @@
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+bool debug_flag = true;
 
 void error(char *fmt, ...) {
     va_list ap;
@@ -15,10 +18,11 @@ void fnputs(FILE* fp, char *str, int n) {
         putc(str[i], fp);
 }
 
-void nputs(char *str, int n) {
-    fnputs(stdout, str, n);
+void debug(char *fmt, ...) {
+    if (!debug_flag) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
 }
 
-void nputs_err(char *str, int n) {
-    fnputs(stderr, str, n);
-}
