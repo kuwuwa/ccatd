@@ -77,6 +77,7 @@ typedef enum {
     ND_CALL,
     ND_ADDR,
     ND_DEREF,
+    ND_SIZEOF,
 
     // statements
     ND_VARDECL,

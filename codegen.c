@@ -87,6 +87,12 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_SIZEOF) {
+        printf("  mov rax, %d\n"
+               "  push %d\n", node->val, node->val);
+        return;
+    }
+
     if (node->kind == ND_VARDECL) {
         gen_lval(node->lhs);
         gen(node->rhs);

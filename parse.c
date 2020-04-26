@@ -75,6 +75,11 @@ Vec *tokenize(char *p) {
             p += 3;
             continue;
         }
+        if (len == 6 && !memcmp("sizeof", p, 6)) {
+            vec_push(vec, new_token(TK_KWD, p, 6));
+            p += 6;
+            continue;
+        }
 
         if (len > 0) {
             vec_push(vec, new_token(TK_IDT, p, q - p));
@@ -382,6 +387,12 @@ Node *mul() {
 }
 
 Node *unary() {
+    if (consume_keyword("sizeof")) {
+        Node *node = calloc(1, sizeof(Node));
+        node->kind = ND_SIZEOF;
+        node->lhs = unary();
+        return node;
+    }
     if (consume_keyword("+"))
         return term();
     if (consume_keyword("-"))

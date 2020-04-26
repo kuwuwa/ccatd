@@ -76,5 +76,8 @@ try_return 3  'int inc(int* x){*x=*x+1;} int main(){ int a = 0; inc(&a); inc(&a)
 try_return 20 'int main() { int x = 10; int* y = &x; *y = 20; return x; }'
 # addition/subtraction of pointer
 try_return 4 'int main() { int* a = &0; alloc4(&a, 1, 2, 4, 8); *(a+1) = 4294967295; *(a+3)=4294967295; return *(a+2); }'
-
+# sizeof
+try_return 4 'int main() { return sizeof(1); }'
+try_return 4 'int main() { return sizeof sizeof 10; }'
+try_return 8 'int main() { int *x = 0; return sizeof x; }'
 echo "Accepted!!"

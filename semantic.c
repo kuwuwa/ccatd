@@ -159,6 +159,13 @@ void sema_expr(Node* node) {
         node->type = node->lhs->type->ptr_to;
         return;
     }
+    // ND_SIZEOF
+    if (node->kind == ND_SIZEOF) {
+        sema_expr(node->lhs);
+        node->type = type_int;
+        node->val = type_size(node->lhs->type);
+        return;
+    }
     // ND_CALL,
     if (node->kind == ND_CALL) {
         Func *f = find_func(node);
