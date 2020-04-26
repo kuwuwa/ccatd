@@ -7,6 +7,7 @@ void sema_block(Vec*, Func*);
 void sema_stmt(Node*, Func*, int scope_start);
 void sema_expr(Node*);
 void sema_lval(Node*);
+
 bool assignable(Type*, Type*);
 bool eq_type(Type*, Type*);
 
@@ -19,6 +20,7 @@ Node *find_lvar_sema(Node *node);
 int index_of_lvar(Node *node);
 
 Func *find_func(Node *node);
+Type *ptr_of_array(Type* typ);
 
 // ------------------------------------------------------------
 
@@ -141,23 +143,22 @@ void sema_expr(Node* node) {
     if (node->kind == ND_ASGN) {
         sema_lval(node->lhs);
         sema_expr(node->rhs);
-        if (!eq_type(node->lhs->type, node->rhs->type))
+        if (!assignable(node->lhs->type, node->rhs->type))
             error("type mismatch in an assignment statment");
         node->type = node->lhs->type;
         return;
     }
     // ND_ADDR,
     if (node->kind == ND_ADDR) {
-        sema_expr(node->lhs);
+        sema_lval(node->lhs);
         node->type = ptr_of(node->lhs->type);
         return;
     }
     // ND_DEREF,
     if (node->kind == ND_DEREF) {
         sema_expr(node->lhs);
-        if (node->lhs->type->ty != TY_PTR) {
+        if (!is_pointer_compat(node->lhs->type))
             error("dereferencing non-pointer is not allowed");
-        }
         node->type = node->lhs->type->ptr_to;
         return;
     }
@@ -192,10 +193,10 @@ void sema_expr(Node* node) {
     if (node->kind == ND_ADD) {
         if (is_int(lty) && is_int(rty)) {
             node->type = type_int;
-        } else if (is_ptr(lty) && is_int(rty)) {
-            node->type = lty;
-        } else if (is_int(lty) && is_ptr(rty)) {
-            node->type = rty;
+        } else if (is_pointer_compat(lty) && is_int(rty)) {
+            node->type = coerce_pointer(lty);
+        } else if (is_int(lty) && is_pointer_compat(rty)) {
+            node->type = coerce_pointer(rty);
         } else {
             error("unsupported addition");
         }
@@ -205,8 +206,8 @@ void sema_expr(Node* node) {
     if (node->kind == ND_SUB) {
         if (is_int(lty) && is_int(rty)) {
             node->type = type_int;
-        } else if (is_ptr(lty) && is_int(rty)) {
-            node->type = lty;
+        } else if (is_pointer_compat(lty) && is_int(rty)) {
+            node->type = coerce_pointer(lty);
         } else {
             error("unsupported subtraction");
         }
@@ -262,7 +263,10 @@ void sema_lval(Node *node) {
 }
 
 bool assignable(Type *lhs, Type *rhs) {
-    return eq_type(lhs, rhs) || (is_ptr(lhs) && is_int(rhs));
+    if (eq_type(lhs, rhs))
+        return true;
+
+    return is_pointer_compat(rhs) && eq_type(lhs, coerce_pointer(rhs));
 }
 
 bool eq_type(Type* t1, Type* t2) {
@@ -299,4 +303,10 @@ Func *find_func(Node *node) {
             return func;
     }
     return NULL;
+}
+
+Type *ptr_of_array(Type *typ) {
+    if (typ->ty == TY_ARRAY)
+        return ptr_of(typ->ptr_to);
+    return typ;
 }

@@ -34,7 +34,8 @@ Vec *tokenize(char *p) {
 
         if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' ||
                 *p == '<' || *p == '>' || *p == '=' || *p == ';' ||
-                *p == '{' || *p == '}' || *p == ',' || *p == '&') {
+                *p == '{' || *p == '}' || *p == ',' || *p == '&' ||
+                *p == '[' || *p == ']') {
             vec_push(vec, new_token(TK_KWD, p, 1));
             p += 1;
             continue;
@@ -177,7 +178,8 @@ Node *new_node_num(int v) {
     return node;
 }
 
-Type* type();
+Type *type();
+void type_array(Type**);
 Func *func();
 Vec *params();
 Node *stmt();
@@ -311,6 +313,7 @@ Node *stmt() {
     } else if (lookahead_int_type()) {
         Type *typ = type();
         Token *id = expect(TK_IDT);
+        type_array(&typ);
         Node *rhs = consume_keyword("=") ? expr() : NULL;
         expect_keyword(";");
 
@@ -324,6 +327,14 @@ Node *stmt() {
         expect_keyword(";");
     }
     return node;
+}
+
+void type_array(Type **t) {
+    while (consume_keyword("[")) {
+        Token *len = consume(TK_NUM);
+        *t = array_of(*t, len->val);
+        expect_keyword("]");
+    }
 }
 
 Node *expr() {
@@ -418,34 +429,45 @@ Node *term() {
         return node;
     }
 
+    Node *node;
     Token *tk = consume(TK_IDT);
-    if (tk) { // ident . ("(" ")")?
-        if (consume_keyword("(")) {
+    if (tk) {
+        if (consume_keyword("(")) { // CALL
             Vec *vec = args();
 
-            Node *node = calloc(1, sizeof(Node));
+            node = calloc(1, sizeof(Node));
             node->kind = ND_CALL;
             node->name = tk->str;
             node->len = tk->len;
             node->block = vec;
-            return node;
+        } else { // variable
+            node = find_lvar(tk);
+            if (node == NULL) {
+                fprintf(stderr, "variable not defined: ");
+                fnputs(stdout, tk->str, tk->len);
+                error("\n");
+            }
         }
-
-        Node *node = find_lvar(tk);
-        if (node == NULL) {
-            fprintf(stderr, "variable not defined: ");
-            fnputs(stdout, tk->str, tk->len);
-            error("\n");
-        }
-
-        return node;
+    } else if ((tk = consume(TK_NUM))) { // number
+        node = new_node_num(tk->val);
     }
 
-    tk = consume(TK_NUM);
-    if (!tk)
+    if (!node)
         error("invalid expression or statement");
 
-    Node *node = new_node_num(tk->val);
+    while (consume_keyword("[")) {
+        Node *index_node = expr();
+        expect_keyword("]");
+
+        Node *add_node = new_op(ND_ADD, node, index_node);
+
+        Node *next_node = calloc(1, sizeof(Node));
+        next_node->kind = ND_DEREF;
+        next_node->lhs = add_node;
+        
+        node = next_node;
+    }
+
     return node;
 }
 

@@ -78,6 +78,7 @@ typedef enum {
     ND_ADDR,
     ND_DEREF,
     ND_SIZEOF,
+    ND_INDEX,
 
     // statements
     ND_VARDECL,
@@ -117,19 +118,24 @@ Vec* parse();
 // type
 
 struct Type {
-    enum { TY_INT, TY_PTR } ty;
+    enum { TY_INT, TY_PTR, TY_ARRAY } ty;
     Type* ptr_to;
+    int array_size;
 };
 
 extern Type *type_int;
 
 Type *ptr_of(Type *type);
 
+Type *array_of(Type *type, int len);
+
 int type_size(Type *type);
 
 bool is_int(Type *type);
 
-bool is_ptr(Type *type);
+bool is_pointer_compat(Type *type);
+
+Type *coerce_pointer(Type *type);
 
 // semantic analysis
 

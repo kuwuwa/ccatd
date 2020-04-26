@@ -75,9 +75,13 @@ try_return 10 'int main() { int a = 10; int b = 20; int* c = &b + 1; return *c; 
 try_return 3  'int inc(int* x){*x=*x+1;} int main(){ int a = 0; inc(&a); inc(&a); inc(&a); return a; }'
 try_return 20 'int main() { int x = 10; int* y = &x; *y = 20; return x; }'
 # addition/subtraction of pointer
-try_return 4 'int main() { int* a = &0; alloc4(&a, 1, 2, 4, 8); *(a+1) = 4294967295; *(a+3)=4294967295; return *(a+2); }'
+try_return 4 'int main() { int* a; alloc4(&a, 1, 2, 4, 8); *(a+1) = 4294967295; *(a+3)=4294967295; return *(a+2); }'
 # sizeof
 try_return 4 'int main() { return sizeof(1); }'
 try_return 4 'int main() { return sizeof sizeof 10; }'
-try_return 8 'int main() { int *x = 0; return sizeof x; }'
+try_return 8 'int main() { int *x; return sizeof x; }'
+# array
+try_return 12 'int main() { int a[3]; return sizeof(a); }'
+try_return 10 'int main() { int a[4]; *(a+1)=10; return a[1]; }'
+try_return 3 'int main() { int a[2]; *a = 1; *(a + 1) = 2; int *p = a; return *p + *(p + 1); }'
 echo "Accepted!!"

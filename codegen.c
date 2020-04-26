@@ -33,8 +33,12 @@ void gen(Node *node) {
         printf("  mov rax, rbp\n");
         printf("  sub rax, %d\n", node->val);
 
-        char *ax = ax_of_type(node->type);
-        printf("  mov %s, [rax]\n", ax);
+        if (node->type->ty == TY_ARRAY) {
+            // pass; put an beginning address of given array
+        } else {
+            char *ax = ax_of_type(node->type);
+            printf("  mov %s, [rax]\n", ax);
+        }
         printf("  push rax\n");
         stack_depth += 8;
         return;
@@ -286,9 +290,13 @@ void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
 
 
 char *ax_of_type(Type *type) {
+    if (type->ty == TY_ARRAY)
+        return "rax";
     return type_size(type) == 8 ? "rax" : "eax";
 }
 
 char *di_of_type(Type *type) {
+    if (type->ty == TY_ARRAY)
+        return "rdi";
     return type_size(type) == 8 ? "rdi" : "edi";
 }

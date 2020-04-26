@@ -72,7 +72,6 @@ int main(int argc, char **argv) {
     for (int i = 0; i < vec_len(code); i++) {
         sema_func(vec_at(code, i));
     }
-    fflush(stderr);
 
     printf(".intel_syntax noprefix\n"
            ".global main\n");
