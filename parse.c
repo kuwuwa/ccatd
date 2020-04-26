@@ -311,8 +311,7 @@ Node *stmt() {
     } else if (lookahead_int_type()) {
         Type *typ = type();
         Token *id = expect(TK_IDT);
-        expect_keyword("=");
-        Node *rhs = expr();
+        Node *rhs = consume_keyword("=") ? expr() : NULL;
         expect_keyword(";");
 
         Node *lhs = find_lvar(id);

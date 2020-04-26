@@ -75,9 +75,11 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
         if (scope_start <= idx && idx < vec_len(local_vars))
             error("duplicate variable");
 
-        sema_expr(node->rhs);
-        if (!assignable(node->lhs->type, node->rhs->type))
-            error("type mismatch in a variable declaration");
+        if (node->rhs != NULL) {
+            sema_expr(node->rhs);
+            if (!assignable(node->lhs->type, node->rhs->type))
+                error("type mismatch in a variable declaration");
+        }
 
         node->lhs->val = 8 + scoped_stack_space;
         vec_push(local_vars, node->lhs);
@@ -86,7 +88,7 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
             ? scoped_stack_space
             : max_scoped_stack_space;
 
-        node->type = node->rhs->type;
+        node->type = node->lhs->type;
         return;
     }
     if (node->kind == ND_RETURN) {

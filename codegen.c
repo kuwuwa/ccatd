@@ -94,6 +94,9 @@ void gen(Node *node) {
     }
 
     if (node->kind == ND_VARDECL) {
+        if (node->rhs == NULL)
+            return;
+
         gen_lval(node->lhs);
         gen(node->rhs);
         printf("  pop rax\n");
