@@ -227,8 +227,6 @@ Func *func() {
     func->params = par;
     func->block = blk;
 
-    func->offset = vec_len(locals) * 8;
-
     func->ret_type = ty;
     return func;
 }
@@ -306,7 +304,7 @@ Node *stmt() {
         node->kind = ND_BLOCK;
         node->block = vec;
     } else if (lookahead_int_type()) {
-        Type *ty = type();
+        Type *typ = type();
         Token *id = expect(TK_IDT);
         expect_keyword("=");
         Node *rhs = expr();
@@ -314,7 +312,7 @@ Node *stmt() {
 
         Node *lhs = find_lvar(id);
         if (lhs == NULL)
-            lhs = push_lvar(ty, id);
+            lhs = push_lvar(typ, id);
 
         node = new_op(ND_VARDECL, lhs, rhs);
     } else {

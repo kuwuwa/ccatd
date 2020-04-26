@@ -3,7 +3,8 @@
 
 #include "ccatd.h"
 
-char *arg_regs64[6] = { "rdi", "rsi", "rdx", "rcx", "r8", "r9", };
+char *arg_regs64[6] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
+char *arg_regs32[6] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
 
 void gen(Node*);
 void gen_stmt(Node*);
@@ -11,6 +12,8 @@ void gen_func(Func*);
 void gen_lval(Node*);
 bool is_expr(Node_kind);
 void gen_coeff_ptr(Type*, Type*);
+char *ax_of_type(Type*);
+char *di_of_type(Type*);
 
 // generate
 
@@ -19,7 +22,8 @@ int stack_depth = 0;
 
 void gen(Node *node) {
     if (node->kind == ND_NUM) {
-        printf("  mov rax, %d\n", node->val);
+        // assuming `int'
+        printf("  mov eax, %d\n", node->val);
         printf("  push %d\n", node->val);
         stack_depth += 8;
         return;
@@ -28,7 +32,9 @@ void gen(Node *node) {
     if (node->kind == ND_LVAR) {
         printf("  mov rax, rbp\n");
         printf("  sub rax, %d\n", node->val);
-        printf("  mov rax, [rax]\n");
+
+        char *ax = ax_of_type(node->type);
+        printf("  mov %s, [rax]\n", ax);
         printf("  push rax\n");
         stack_depth += 8;
         return;
@@ -37,7 +43,7 @@ void gen(Node *node) {
     if (node->kind == ND_ASGN) {
         gen_lval(node->lhs);
         gen(node->rhs);
-        char *ax = "rax\0";
+        char *ax = ax_of_type(node->type);
         printf("  pop rax\n"
                "  pop rdi\n");
         printf("  mov [rdi], %s\n", ax);
@@ -48,19 +54,21 @@ void gen(Node *node) {
 
     if (node->kind == ND_CALL) {
         int arg_len = vec_len(node->block);
+        int revert_stack_depth = stack_depth;
         for (int i = 0; i < arg_len; i++)
             gen(vec_at(node->block, i));
-        for (int i = arg_len-1; i >= 0; i--)
+        for (int i = arg_len-1; i >= 0; i--) {
             printf("  pop %s\n", arg_regs64[i]);
-        stack_depth -= 8 * arg_len;
+        }
+        stack_depth = revert_stack_depth;
         if (stack_depth % 16 != 0)
             printf("  sub rsp, 8\n"); // 16-byte boundary
-        printf("  and rsp, -16\n");
         printf("  call ");
         fnputs(stdout, node->name, node->len);
         printf("\n");
         if (stack_depth % 16 != 0)
             printf("  add rsp, 8\n"); // 16-byte boundary
+
         printf("  push rax\n");
         stack_depth += 8;
         return;
@@ -82,10 +90,9 @@ void gen(Node *node) {
     if (node->kind == ND_VARDECL) {
         gen_lval(node->lhs);
         gen(node->rhs);
-        char *ax = "rax\0";
-        fflush(stderr);
-        printf("  pop rax\n"
-               "  pop rdi\n");
+        printf("  pop rax\n");
+        printf("  pop rdi\n");
+        char *ax = ax_of_type(node->type);
         printf("  mov [rdi], %s\n", ax);
         printf("  push rax\n");
         stack_depth += 8;
@@ -220,7 +227,8 @@ void gen_func(Func* func) {
            "  mov rbp, rsp\n");
     for (int i = 0; i < vec_len(func->params); i++)
         printf("  push %s\n", arg_regs64[i]);
-    printf("  sub rsp, %d\n", func->offset - 8 * vec_len(func->params));
+    int local_vars_space = func->offset - 8 * vec_len(func->params);
+    printf("  sub rsp, %d\n", 8 + local_vars_space);
     stack_depth = func->offset;
     for (int i = 0; i < vec_len(func->block); i++)
         gen_stmt(vec_at(func->block, i));
@@ -239,8 +247,10 @@ void gen_lval(Node *node) {
     } else if (node->kind == ND_DEREF) {
         gen(node->lhs);
         return;
+    } else if (node->kind == ND_NUM) {
+        gen(node);
+        return;
     }
-
     error("term should be a left value");
 }
 
@@ -265,3 +275,11 @@ void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
     }
 }
 
+
+char *ax_of_type(Type *type) {
+    return type_size(type) == 8 ? "rax" : "eax";
+}
+
+char *di_of_type(Type *type) {
+    return type_size(type) == 8 ? "rdi" : "edi";
+}

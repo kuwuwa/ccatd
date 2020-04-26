@@ -6,10 +6,14 @@ void sema_func(Func*);
 void sema_block(Vec*, Func*);
 void sema_stmt(Node*, Func*, int scope_start);
 void sema_expr(Node*);
+void sema_lval(Node*);
+bool assignable(Type*, Type*);
 bool eq_type(Type*, Type*);
 
 Vec *func_env;
 Vec *local_vars;
+int scoped_stack_space;
+int max_scoped_stack_space;
 
 Node *find_lvar_sema(Node *node);
 int index_of_lvar(Node *node);
@@ -36,12 +40,21 @@ void sema_func(Func *func) {
 
     vec_push(func_env, func);
 
+    scoped_stack_space = 0;
+    max_scoped_stack_space = 0;
+
     // block
     local_vars = vec_new();
-    for (int i = 0; i < params_len; i++)
-        vec_push(local_vars, vec_at(func->params, i));
+    for (int i = 0; i < params_len; i++) {
+        Node* param = vec_at(func->params, i);
+        vec_push(local_vars, param);
+        int param_size = type_size(param->type);
+        scoped_stack_space += param_size;
+    }
+    max_scoped_stack_space = scoped_stack_space;
 
     sema_block(func->block, func);
+    func->offset = max_scoped_stack_space;
 }
 
 void sema_block(Vec *block, Func *func) {
@@ -50,8 +63,10 @@ void sema_block(Vec *block, Func *func) {
     for (int i = 0; i < block_len; i++)
         sema_stmt(vec_at(block, i), func, scope_start);
 
-    while (vec_len(local_vars) > scope_start)
-        vec_pop(local_vars);
+    while (vec_len(local_vars) > scope_start) {
+        Node *var = vec_pop(local_vars);
+        scoped_stack_space -= type_size(var->type);
+    }
 }
 
 void sema_stmt(Node *node, Func *func, int scope_start) {
@@ -61,8 +76,16 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
             error("duplicate variable");
 
         sema_expr(node->rhs);
-        eq_type(node->lhs->type, node->rhs->type);
+        if (!assignable(node->lhs->type, node->rhs->type))
+            error("type mismatch in a variable declaration");
+
+        node->lhs->val = 8 + scoped_stack_space;
         vec_push(local_vars, node->lhs);
+        scoped_stack_space += type_size(node->lhs->type);
+        max_scoped_stack_space = scoped_stack_space > max_scoped_stack_space
+            ? scoped_stack_space
+            : max_scoped_stack_space;
+
         node->type = node->rhs->type;
         return;
     }
@@ -114,7 +137,7 @@ void sema_expr(Node* node) {
     }
     // ND_ASGN,
     if (node->kind == ND_ASGN) {
-        sema_expr(node->lhs);
+        sema_lval(node->lhs);
         sema_expr(node->rhs);
         if (!eq_type(node->lhs->type, node->rhs->type))
             error("type mismatch in an assignment statment");
@@ -219,6 +242,18 @@ void sema_expr(Node* node) {
         return;
     }
     error("unsupported feature");
+}
+
+void sema_lval(Node *node) {
+    if (node->kind == ND_LVAR || node->kind == ND_DEREF) {
+        sema_expr(node);
+        return;
+    }
+    error("should be left value");
+}
+
+bool assignable(Type *lhs, Type *rhs) {
+    return eq_type(lhs, rhs) || (is_ptr(lhs) && is_int(rhs));
 }
 
 bool eq_type(Type* t1, Type* t2) {

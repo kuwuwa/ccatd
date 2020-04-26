@@ -71,10 +71,10 @@ try_return 20 'int f(int x) { return 10-x; } int main() { return 10*f(8); }'
 try_return 86 'int f(int x){return x*4;} int g(int x,int y){int z=x+f(x+y); return z;} int main(){return g(10,9);}'
 try_return 55 'int fib(int x){if(x<=1)return x;return fib(x-1)+fib(x-2);} int main(){return fib(10);}'
 # pointer
-try_return 10 'int main() { int a = 10; int b = 20; int* c = &b + 8; return *c; }'
+try_return 10 'int main() { int a = 10; int b = 20; int* c = &b + 1; return *c; }'
 try_return 3  'int inc(int* x){*x=*x+1;} int main(){ int a = 0; inc(&a); inc(&a); inc(&a); return a; }'
 try_return 20 'int main() { int x = 10; int* y = &x; *y = 20; return x; }'
 # addition/subtraction of pointer
-try_return 8 'int main() { int* a = 0; alloc4(&a, 1, 2, 4, 8); *(a+1) = 4294967295; return *(a+3); }'
+try_return 4 'int main() { int* a = &0; alloc4(&a, 1, 2, 4, 8); *(a+1) = 4294967295; *(a+3)=4294967295; return *(a+2); }'
 
 echo "Accepted!!"

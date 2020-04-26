@@ -28,10 +28,13 @@ void vec_push(Vec *vec, void *node) {
     vec->data[vec->len++] = node;
 }
 
-void vec_pop(Vec *vec) {
+void *vec_pop(Vec *vec) {
     if (vec->len == 0)
-        return;
+        return NULL;
+
+    void * ptr = vec->data[vec->len-1];
     vec->data[vec->len--] = NULL;
+    return ptr;
 }
 
 void *vec_at(Vec *vec, int idx) {

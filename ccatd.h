@@ -23,7 +23,7 @@ struct Type;
 
 Vec *vec_new();
 void vec_push(Vec *vec, void *node);
-void vec_pop(Vec *vec);
+void *vec_pop(Vec *vec);
 int vec_len(Vec *vec);
 void *vec_at(Vec *vec, int idx);
 
@@ -123,6 +123,8 @@ struct Type {
 extern Type *type_int;
 
 Type *ptr_of(Type *type);
+
+int type_size(Type *type);
 
 bool is_int(Type *type);
 
