@@ -18,9 +18,7 @@ try_return() {
   ./_temp
   actual="$?"
 
-  if [ "$actual" = "$expected" ]; then
-    echo "\`$input\` => $actual"
-  else
+  if [ "$actual" != "$expected" ]; then
     echo "\`$input\` => $expected expected, but actually $actual"
     exit 1
   fi
@@ -34,14 +32,11 @@ try_stdout() {
   ./_temp > _temp.txt
   actual=$(cat _temp.txt)
 
-  if [ "$actual" = "$expected" ]; then
-    echo "\`$input\` >> $actual"
-  else
+  if [ "$actual" != "$expected" ]; then
     echo "\`$input\` >> $expected expected, but actually $actual"
     exit 1
   fi
 }
-
 
 # arithmetic expression
 try_return 121 'int main() { int num = 1 + - 2  * - 3  +  4; return num * num; }'
