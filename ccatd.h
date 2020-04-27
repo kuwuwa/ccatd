@@ -130,12 +130,13 @@ void parse();
 // type
 
 struct Type {
-    enum { TY_INT, TY_PTR, TY_ARRAY } ty;
+    enum { TY_INT, TY_CHAR, TY_PTR, TY_ARRAY } ty;
     Type* ptr_to;
     int array_size;
 };
 
 extern Type *type_int;
+extern Type *type_char;
 
 Type *ptr_of(Type *type);
 

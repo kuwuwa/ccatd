@@ -1,5 +1,6 @@
 
 CC=gcc
+CFLAGS='-static -g'
 APP=ccatd
 
 try_return() {
@@ -10,7 +11,7 @@ try_return() {
     echo "compilation failed: \"$2\""
     exit 1
   fi
-  ${CC} -g -no-pie -o _temp runtime.o _temp.s
+  ${CC} ${CFLAGS} -o _temp runtime.o _temp.s
   if [ "$?" != 0 ]; then
     echo "link failed: \"$2\""
     exit 1
@@ -28,7 +29,7 @@ try_stdout() {
   expected="$1"
   input="$2"
   ./${APP} "$input" > _temp.s
-  ${CC} -o _temp runtime.o _temp.s
+  ${CC} ${CFLAGS} -o _temp runtime.o _temp.s
   ./_temp > _temp.txt
   actual=$(cat _temp.txt)
 
@@ -82,4 +83,8 @@ try_return 3 'int main() { int a[2]; *a = 1; *(a + 1) = 2; int *p = a; return *p
 # global variable
 try_return 9 'int x; int main() { x = 9; return x; }'
 try_return 20 'int x; int y[10]; int main() { x = 2; y[8] = 10; return x * y[8];}'
+# char
+try_return 1 'char x[8]; int main() { x[1] = 255; x[2] = 1; x[3] = 255; return x[2]; }'
+try_stdout 'Hello, World!' 'char x[14]; int main() { x[0] = 72; x[1] = 101; x[2] = 108; x[3] = 108; x[4] = 111; x[5] = 44; x[6] = 32; x[7] = 87; x[8] = 111; x[9] = 114; x[10] = 108; x[11] = 100; x[12] = 33; x[13] = 0; print(x); return 0; }'
+
 echo "Accepted!!"

@@ -20,7 +20,7 @@ char *word_of_type(Type*);
 // generate global variables
 
 void gen_globals() {
-    printf("  .data\n");
+    printf("  .bss\n");
     for (int i = 0; i < vec_len(environment->globals); i++) {
         Node *global = vec_at(environment->globals, i);
 
@@ -54,8 +54,14 @@ void gen(Node *node) {
         if (node->type->ty == TY_ARRAY) {
             // pass; put an beginning address of given array
         } else {
-            char *ax = ax_of_type(node->type);
-            printf("  mov %s, [rax]\n", ax);
+            int size = type_size(node->type);
+            if (size == 1) {
+                printf("  movsx eax, BYTE PTR [rax]\n");
+            } else if (size == 4) {
+                printf("  mov eax, [rax]\n");
+            } else { /* size == 8 */
+                printf("  mov rax, [rax]\n");
+            }
         }
         printf("  push rax\n");
         stack_depth += 8;
@@ -323,9 +329,9 @@ bool is_expr(Node_kind kind) {
 void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
     if (lt->ty == TY_INT && rt->ty == TY_INT) {
     } else if (lt->ty == TY_INT) {
-        printf("  imul rax, %d\n", (rt->ptr_to->ty == TY_INT ? 4 : 8));
+        printf("  imul rax, %d\n", type_size(rt->ptr_to));
     } else if (rt->ty == TY_INT) {
-        printf("  imul rdi, %d\n", (lt->ptr_to->ty == TY_INT ? 4 : 8));
+        printf("  imul rdi, %d\n", type_size(lt->ptr_to));
     } else {
         error("addition/subtraction of two pointers is not allowed");
     }
@@ -335,13 +341,23 @@ void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
 char *ax_of_type(Type *type) {
     if (type->ty == TY_ARRAY)
         return "rax";
-    return type_size(type) == 8 ? "rax" : "eax";
+    int size = type_size(type);
+    if (size == 1)
+        return "al";
+    if (size == 4)
+        return "eax";
+    return "rax";
 }
 
 char *di_of_type(Type *type) {
     if (type->ty == TY_ARRAY)
         return "rdi";
-    return type_size(type) == 8 ? "rdi" : "edi";
+    int size = type_size(type);
+    if (size == 1)
+        return "dil";
+    if (size == 4)
+        return "edi";
+    return "rdi";
 }
 
 char *word_of_type(Type* type) {

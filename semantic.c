@@ -266,6 +266,11 @@ bool assignable(Type *lhs, Type *rhs) {
     if (eq_type(lhs, rhs))
         return true;
 
+    if (lhs == type_char && rhs == type_int)
+        return true;
+    if (lhs == type_int && rhs == type_char)
+        return true;
+
     return is_pointer_compat(rhs) && eq_type(lhs, coerce_pointer(rhs));
 }
 

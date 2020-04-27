@@ -140,23 +140,27 @@ void expect_keyword(char* str) {
     index++;
 }
 
-bool lookahead_int_type() {
+bool lookahead_type(char* str) {
+    int len = strlen(str);
     Token *tk = lookahead(TK_IDT);
-    return tk != NULL && tk->len == 3 && !memcmp(tk->str, "int", 3);
+    return tk != NULL && tk->len == len && !memcmp(tk->str, str, len);
 }
 
-bool consume_int_type() {
-    bool consumed = lookahead_int_type();
-    if (consumed)
+bool lookahead_any_type() {
+    return lookahead_type("int") || lookahead_type("char");
+}
+
+Type *consume_type() {
+    if (lookahead_type("int")) {
         index++;
-    return consumed;
+        return type_int;
+    } else if (lookahead_type("char")) {
+        index++;
+        return type_char;
+    }
+    return NULL;
 }
 
-void expect_int_type() {
-    if (consume_int_type())
-        return;
-    error("`int' expected");
-}
 
 // parse
 
@@ -246,15 +250,12 @@ Func *func(Type *ty, Token *name) {
 }
 
 Type *type() {
-    expect_int_type();
-    Type *typ = calloc(1, sizeof(Type));
-    typ->ty = TY_INT;
-    while (consume_keyword("*")) {
-        Type *u = calloc(1, sizeof(Type));
-        u->ty = TY_PTR;
-        u->ptr_to = typ;
-        typ = u;
-    }
+    Type *typ = consume_type();
+    if (typ == NULL)
+        error("unknown type");
+
+    while (consume_keyword("*"))
+        typ = ptr_of(typ);
     return typ;
 }
 
@@ -329,7 +330,7 @@ Node *stmt() {
         node = calloc(1, sizeof(Node));
         node->kind = ND_BLOCK;
         node->block = vec;
-    } else if (lookahead_int_type()) {
+    } else if (lookahead_any_type()) {
         Type *typ = type();
         Token *id = expect(TK_IDT);
         type_array(&typ);

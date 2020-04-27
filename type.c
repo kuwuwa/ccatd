@@ -2,6 +2,7 @@
 #include "ccatd.h"
 
 Type *type_int;
+Type *type_char;
 
 Type *ptr_of(Type *ty) {
     Type *ret = (Type*) calloc(1, sizeof(Type));
@@ -12,13 +13,15 @@ Type *ptr_of(Type *ty) {
 
 Type *array_of(Type *ty, int len) {
     Type *ret = (Type*) calloc(1, sizeof(Type));
-    ret->ty = TY_ARRAY; 
+    ret->ty = TY_ARRAY;
     ret->ptr_to = ty;
     ret->array_size = len;
     return ret;
 }
 
 int type_size(Type *t) {
+    if (t->ty == TY_CHAR)
+        return 1;
     if (t->ty == TY_INT)
         return 4;
     if (t->ty == TY_PTR)

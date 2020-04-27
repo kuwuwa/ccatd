@@ -16,3 +16,7 @@ void alloc4(int ** arr, int v1, int v2, int v3, int v4) {
     (*arr)[2] = v3;
     (*arr)[3] = v4;
 }
+
+void print(char *str) {
+    printf("%s", str);
+}
