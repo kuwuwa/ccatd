@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "ccatd.h"
 
@@ -31,6 +32,13 @@ void gen_globals() {
         fnputs(stdout, global->name, global->len);
         printf(":\n  .zero %d\n", type_size(global->type));
     }
+    printf("  .text\n");
+    for (int i = 0; i < vec_len(environment->string_literals); i++) {
+        String *str = vec_at(environment->string_literals, i);
+        printf(".LC%d:\n  .string \"", i);
+        fnputs(stdout, str->ptr, str->len);
+        printf("\"\n");
+    }
 }
 
 // generate function
@@ -45,6 +53,16 @@ void gen(Node *node) {
         printf("  push %d\n", node->val);
         stack_depth += 8;
         return;
+    }
+    if (node->kind == ND_STRING) {
+        for (int i = 0; i < vec_len(environment->string_literals); i++) {
+            String *str = vec_at(environment->string_literals, i);
+            if (node->len == str->len && !memcmp(node->name, str->ptr, str->len)) {
+                printf("  mov rax, OFFSET FLAT:.LC%d\n", i);
+                printf("  push rax\n");
+                return;
+            }
+        }
     }
 
     if (node->kind == ND_LVAR) {
@@ -131,8 +149,6 @@ void gen(Node *node) {
         printf("  pop rdi\n");
         char *ax = ax_of_type(node->type);
         printf("  mov [rdi], %s\n", ax);
-        printf("  push rax\n");
-        stack_depth += 8;
         return;
     }
 

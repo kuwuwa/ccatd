@@ -17,12 +17,28 @@ Token *new_token(Token_kind kind, char *str, int len) {
     return tok;
 }
 
-Vec *tokenize(char *p) {
+void tokenize(char *p) {
     Vec *vec = vec_new();
 
     while (*p) {
         if (isspace(*p)) {
             p++;
+            continue;
+        }
+
+        if (*p == '"') {
+            p++; // '"'
+            char *q = p;
+            while (*q != '"') q++;
+            int len = q - p;
+
+            String *str = calloc(1, sizeof(String));
+            str->ptr = p;
+            str->len = len;
+            vec_push(environment->string_literals, str);
+            vec_push(vec, new_token(TK_STRING, p, len));
+
+            p = q+1; // next to '"'
             continue;
         }
 
@@ -91,7 +107,7 @@ Vec *tokenize(char *p) {
         error("an unknown character was found");
     }
 
-    return vec;
+    tokens = vec;
 }
 
 Vec *tokens;
@@ -200,10 +216,6 @@ Node *find_var(Token*);
 Node *push_lvar(Type*, Token*);
 
 void parse() {
-    environment = calloc(1, sizeof(Environment));
-    environment->functions = vec_new();
-    environment->globals = vec_new();
-
     int len = vec_len(tokens);
     while (index < len)
         toplevel();
@@ -470,6 +482,12 @@ Node *term() {
         }
     } else if ((tk = consume(TK_NUM))) { // number
         node = new_node_num(tk->val);
+    } else if ((tk = consume(TK_STRING))) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_STRING;
+        node->name = tk->str;
+        node->len = tk->len;
+        node->type = type_ptr_char;
     }
 
     if (!node)
@@ -484,7 +502,7 @@ Node *term() {
         Node *next_node = calloc(1, sizeof(Node));
         next_node->kind = ND_DEREF;
         next_node->lhs = add_node;
-        
+
         node = next_node;
     }
 

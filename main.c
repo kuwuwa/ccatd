@@ -25,6 +25,8 @@ void push_function(char *name, Type **arg_types, int argc, Type *ret_type) {
 }
 
 void init() {
+    // type
+
     type_int = calloc(1, sizeof(Type));
     type_int->ty = TY_INT;
     type_int->ptr_to = NULL;
@@ -32,6 +34,15 @@ void init() {
     type_char = calloc(1, sizeof(Type));
     type_char->ty = TY_CHAR;
     type_char->ptr_to = NULL;
+
+    type_ptr_char = ptr_of(type_char);
+
+    // parse
+
+    environment = calloc(1, sizeof(Environment));
+    environment->functions = vec_new();
+    environment->globals = vec_new();
+    environment->string_literals = vec_new();
 
     func_env = vec_new();
     push_function(
@@ -72,10 +83,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "invalid number of argument(s)\n");
         return 1;
     }
-
-    tokens = tokenize(argv[1]);
-
     init();
+    tokenize(argv[1]);
     parse();
 
     for (int i = 0; i < vec_len(environment->functions); i++) {
@@ -88,8 +97,6 @@ int main(int argc, char **argv) {
     gen_globals();
 
     int len = vec_len(environment->functions);
-
-    printf("  .text\n");
     for (int i = 0; i < len; i++)
         gen_func(vec_at(environment->functions, i));
     return 0;

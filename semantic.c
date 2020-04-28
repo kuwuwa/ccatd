@@ -75,7 +75,12 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
 
         if (node->rhs != NULL) {
             sema_expr(node->rhs);
-            if (!assignable(node->lhs->type, node->rhs->type))
+            if (node->lhs->type->ty == TY_ARRAY) {
+                if (node->lhs->type->ptr_to->ty == TY_ARRAY && node->rhs->kind == ND_STRING) {
+                    // support string literal
+                } else
+                    error ("unsupported array initialization");
+            } else if (!assignable(node->lhs->type, node->rhs->type))
                 error("type mismatch in a variable declaration");
         }
 
@@ -125,6 +130,11 @@ void sema_expr(Node* node) {
     // ND_NUM,
     if (node->kind == ND_NUM) {
         eq_type(type_int, node->type);
+        return;
+    }
+    // ND_NUM
+    if (node->kind == ND_STRING) {
+        eq_type(type_ptr_char, node->type);
         return;
     }
     // ND_LVAR,
@@ -263,19 +273,24 @@ void sema_lval(Node *node) {
 }
 
 bool assignable(Type *lhs, Type *rhs) {
-    if (eq_type(lhs, rhs))
-        return true;
+    if (lhs == type_int)
+        return rhs == type_int || rhs == type_char;
+    if (lhs == type_char)
+        return rhs == type_char || rhs == type_int;
+    if (lhs->ty == TY_PTR)
+        return is_pointer_compat(rhs) && eq_type(lhs->ptr_to, rhs->ptr_to);
+    if (lhs->ty == TY_ARRAY)
+        return false;
 
-    if (lhs == type_char && rhs == type_int)
-        return true;
-    if (lhs == type_int && rhs == type_char)
-        return true;
-
-    return is_pointer_compat(rhs) && eq_type(lhs, coerce_pointer(rhs));
+    error("[internal] assignable: unsupported type appeared");
+    return false;
 }
+
 
 bool eq_type(Type* t1, Type* t2) {
     if (t1->ty == TY_PTR && t2->ty == TY_PTR) {
+        return eq_type(t1->ptr_to, t2->ptr_to);
+    } else if (t1->ty == TY_ARRAY && t2->ty == TY_ARRAY) {
         return eq_type(t1->ptr_to, t2->ptr_to);
     } else {
         return t1->ty == t2->ty;

@@ -19,6 +19,9 @@ struct Func;
 typedef struct Type Type;
 struct Type;
 
+typedef struct String String;
+struct String;
+
 typedef struct Environment Environment;
 struct Environment;
 
@@ -43,6 +46,7 @@ typedef enum {
     TK_NUM,
     TK_IDT,
     TK_EOF,
+    TK_STRING,
 
     TK_RETURN,
     TK_IF,
@@ -59,7 +63,7 @@ struct Token {
     int len;
 };
 
-Vec *tokenize(char *p);
+void tokenize(char *p);
 
 extern Vec *tokens;
 
@@ -84,6 +88,7 @@ typedef enum {
     ND_SIZEOF,
     ND_INDEX,
     ND_GVAR,
+    ND_STRING,
 
     // statements
     ND_VARDECL,
@@ -102,8 +107,8 @@ struct Node {
     Node *body;     // ND_WHILE, ND_FOR
     Vec *block;     // ND_BLOCK, ND_CALL
     int val;        // ND_NUM, ND_LVAR
-    char *name;     // ND_CALL, ND_LVAR
-    int len;        // ND_CALL
+    char *name;     // ND_CALL, ND_LVAR, ND_STRING
+    int len;        // ND_CALL, ND_STRING[
     Type *type;
 };
 
@@ -116,9 +121,15 @@ struct Func {
     Type *ret_type;
 };
 
+struct String {
+    char *ptr;
+    int len;
+};
+
 struct Environment {
     Vec *functions;
     Vec *globals;
+    Vec *string_literals;
 };
 
 Environment *environment;
@@ -137,6 +148,7 @@ struct Type {
 
 extern Type *type_int;
 extern Type *type_char;
+extern Type *type_ptr_char;
 
 Type *ptr_of(Type *type);
 
