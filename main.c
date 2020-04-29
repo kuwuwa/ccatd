@@ -1,7 +1,8 @@
+#include <errno.h>
 #include <stdbool.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "ccatd.h"
 
@@ -78,13 +79,37 @@ void init() {
     );
 }
 
+char *read_file(char *path) {
+    FILE *fp = fopen(path, "r");
+    if (!fp)
+        error("cannot open %s: %d\n", path, strerror(errno));
+
+    if (fseek(fp, 0, SEEK_END) == -1)
+        error("%s: fseek: %s", path, strerror(errno));
+
+    size_t size = ftell(fp);
+    if (fseek(fp, 0, SEEK_SET) == -1)
+        error("%s: fseek: %s", path, strerror(errno));
+
+    char *buf = calloc(1, size + 2);
+    fread(buf, size, 1, fp);
+
+    if (size == 0 || buf[size - 1] != '\n')
+        buf[size++] = '\n';
+    buf[size] = '\0';
+    fclose(fp);
+    return buf;
+}
+
 int main(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "invalid number of argument(s)\n");
         return 1;
     }
     init();
-    tokenize(argv[1]);
+
+    char *code = read_file(argv[1]);
+    tokenize(code);
     parse();
 
     for (int i = 0; i < vec_len(environment->functions); i++) {

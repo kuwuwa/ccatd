@@ -4,9 +4,9 @@ CFLAGS='-static -g'
 APP=ccatd
 
 try_return() {
-  expected="$1"
-  input="$2"
-  ./${APP} "$input" > _temp.s
+  filename="$1"
+  expected="$2"
+  ./${APP} "$filename" > _temp.s
   if [ "$?" != 0 ]; then
     echo "compilation failed: \"$2\""
     exit 1
@@ -20,74 +20,59 @@ try_return() {
   actual="$?"
 
   if [ "$actual" != "$expected" ]; then
-    echo "\`$input\` => $expected expected, but actually $actual"
+    echo "$filename => $expected expected, but actually $actual"
     exit 1
   fi
 }
 
 try_stdout() {
-  expected="$1"
-  input="$2"
-  ./${APP} "$input" > _temp.s
+  filename="$1"
+  expected="$2"
+  ./${APP} "${filename}" > _temp.s
   ${CC} ${CFLAGS} -o _temp runtime.o _temp.s
   ./_temp > _temp.txt
   actual=$(cat _temp.txt)
 
   if [ "$actual" != "$expected" ]; then
-    echo "\`$input\` >> $expected expected, but actually $actual"
+    echo "\${filename} >> $expected expected, but actually $actual"
     exit 1
   fi
 }
 
-# arithmetic expression
-try_return 121 'int main() { int num = 1 + - 2  * - 3  +  4; return num * num; }'
-try_return 117 'int main() { int pppp = 100 + (20 - 3); return pppp; }'
-try_return 1   'int main() { return 1 * 2 * 3 * 4 * 5 == 120; }'
-try_return 1   'int main() { return 1 < 2 > 0 != 0; }'
-# return
-try_return 19 'int main() { int a = 2; int b = a + 4; int c = 0; return c = a * (b + 1) + 5; a + b + c; }'
-try_return 4  'int main() { 1; 2; 3; return 4; 5; }'
-# assignment
-try_return 8  'int main() { int a = 0; if (-1) a = 8; else a = 4; return a; }'
-try_return 4  'int main() { int a = 0; if (0) a = 8; else a = 4; return a; }'
-try_return 10 'int main() { int x = 3; int y = 4; x + (x + y); }'
-# if/else
-try_return 105 'int main() { int a=3; if (a<2) a=2; else a=5; int b=10; if (a<b) b=100; return a+b; }'
-# while
-try_return 55 'int main() { int a=11; int sum=0; while (a>0) sum=sum+(a=a-1); return sum; }'
-try_return 10 'int main() { int a=10; while (1 > 2) a=100; return a; }'
-# for
-try_return 120 'int main() { int b = 1; int a = 0; for (a=1; a<=5; a=a+1) b=b*a; return b; }'
-# function call
-try_return 70 'int main() { int a = 5; return a * bar(a - 9, 2 - a, -2); }'
-try_stdout "OK" 'int main() { foo(); }'
-# function definition
-try_return 13 'int calc1(int x,int y) { return x * x + y * y; } int main(){return calc1(2, 3);}'
-try_return 20 'int f(int x) { return 10-x; } int main() { return 10*f(8); }'
-try_return 86 'int f(int x){return x*4;} int g(int x,int y){int z=x+f(x+y); return z;} int main(){return g(10,9);}'
-try_return 55 'int fib(int x){if(x<=1)return x;return fib(x-1)+fib(x-2);} int main(){return fib(10);}'
-# pointer
-try_return 10 'int main() { int a = 10; int b = 20; int* c = &b + 1; return *c; }'
-try_return 3  'int inc(int* x){*x=*x+1;} int main(){ int a = 0; inc(&a); inc(&a); inc(&a); return a; }'
-try_return 20 'int main() { int x = 10; int* y = &x; *y = 20; return x; }'
-# addition/subtraction of pointer
-try_return 4 'int main() { int* a; alloc4(&a, 1, 2, 4, 8); *(a+1) = 4294967295; *(a+3)=4294967295; return *(a+2); }'
-# sizeof
-try_return 4 'int main() { return sizeof(1); }'
-try_return 4 'int main() { return sizeof sizeof 10; }'
-try_return 8 'int main() { int *x; return sizeof x; }'
-# array
-try_return 12 'int main() { int a[3]; return sizeof(a); }'
-try_return 10 'int main() { int a[4]; *(a+1)=10; return a[1]; }'
-try_return 3 'int main() { int a[2]; *a = 1; *(a + 1) = 2; int *p = a; return *p + *(p + 1); }'
-# global variable
-try_return 9 'int x; int main() { x = 9; return x; }'
-try_return 20 'int x; int y[10]; int main() { x = 2; y[8] = 10; return x * y[8];}'
-# char
-try_return 1 'char x[8]; int main() { x[1] = 255; x[2] = 1; x[3] = 255; return x[2]; }'
-try_stdout 'Hello, World!' 'char x[14]; int main() { x[0] = 72; x[1] = 101; x[2] = 108; x[3] = 108; x[4] = 111; x[5] = 44; x[6] = 32; x[7] = 87; x[8] = 111; x[9] = 114; x[10] = 108; x[11] = 100; x[12] = 33; x[13] = 0; print(x); return 0; }'
-# string literal
-try_return 87 'char *str; int main() { str = "-------W-----"; return str[7]; }'
-try_stdout 'hack' 'int main() { print("hack"); return 0; }'
+try_return 'sample/arith1.c' '121'
+try_return 'sample/arith2.c' '117'
+try_return 'sample/arith3.c' '1'
+try_return 'sample/arith4.c' '1'
+try_return 'sample/return1.c' '19'
+try_return 'sample/return2.c' '4'
+try_return 'sample/assignment1.c' '8'
+try_return 'sample/assignment2.c' '4'
+try_return 'sample/assignment3.c' '10'
+try_return 'sample/ifelse1.c' '105'
+try_return 'sample/while1.c' '55'
+try_return 'sample/while2.c' '10'
+try_return 'sample/for1.c' '120'
+try_return 'sample/call1.c' '70'
+try_stdout 'sample/call2.c' 'OK'
+try_return 'sample/fundef1.c' '13'
+try_return 'sample/fundef2.c' '20'
+try_return 'sample/fundef3.c' '86'
+try_return 'sample/fundef4.c' '55'
+try_return 'sample/pointer1.c' '10'
+try_return 'sample/pointer2.c' '3'
+try_return 'sample/pointer3.c' '20'
+try_return 'sample/pointer4.c' '4'
+try_return 'sample/sizeof1.c' '4'
+try_return 'sample/sizeof2.c' '4'
+try_return 'sample/sizeof3.c' '8'
+try_return 'sample/array1.c' '12'
+try_return 'sample/array2.c' '10'
+try_return 'sample/array3.c' '3'
+try_return 'sample/global1.c' '9'
+try_return 'sample/global2.c' '20'
+try_return 'sample/char1.c' '1'
+try_stdout 'sample/char2.c' 'Hello, World!'
+try_return 'sample/string1.c' '87'
+try_stdout 'sample/string2.c' 'hack'
 
 echo "Accepted!!"
