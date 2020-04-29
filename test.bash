@@ -8,7 +8,7 @@ try_return() {
   expected="$2"
   ./${APP} "$filename" > _temp.s
   if [ "$?" != 0 ]; then
-    echo "compilation failed: \"$2\""
+    echo "compilation failed: ${filename}"
     exit 1
   fi
   ${CC} ${CFLAGS} -o _temp runtime.o _temp.s
@@ -29,6 +29,10 @@ try_stdout() {
   filename="$1"
   expected="$2"
   ./${APP} "${filename}" > _temp.s
+  if [ "$?" != 0 ]; then
+    echo "compilation failed: ${filename}"
+    exit 1
+  fi
   ${CC} ${CFLAGS} -o _temp runtime.o _temp.s
   ./_temp > _temp.txt
   actual=$(cat _temp.txt)
@@ -74,5 +78,7 @@ try_return 'sample/char1.c' '1'
 try_stdout 'sample/char2.c' 'Hello, World!'
 try_return 'sample/string1.c' '87'
 try_stdout 'sample/string2.c' 'hack'
+try_return 'sample/comment1.c' 0
+try_return 'sample/comment2.c' 10
 
 echo "Accepted!!"

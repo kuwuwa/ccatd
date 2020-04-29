@@ -26,6 +26,20 @@ void tokenize(char *p) {
             continue;
         }
 
+        if (!memcmp(p, "//", 2)) {
+            while (*p != '\n') p++;
+            p++;
+            continue;
+        }
+
+        if (!memcmp(p, "/*", 2)) {
+            p = strstr(p + 2, "*/");
+            if (p == NULL)
+                error("Closing comment \"*/\" expected");
+            p += 2; // "*/"
+            continue;
+        }
+
         if (*p == '"') {
             p++; // '"'
             char *q = p;
