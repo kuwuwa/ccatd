@@ -4,6 +4,9 @@
 
 // struct declarations
 
+typedef struct Location Location;
+struct Location;
+
 typedef struct Token Token;
 struct Token;
 
@@ -36,10 +39,17 @@ void *vec_at(Vec *vec, int idx);
 // util
 
 void error(char *fmt, ...);
+void error_loc(Location *loc, char *fmt, ...);
+void error_loc2(int line, int col, char *fmt, ...);
 void fnputs(FILE* fp, char *str, int n);
 void debug(char *fmt, ...);
 
 // tokenize
+
+struct Location {
+    int line;
+    int column;
+};
 
 typedef enum {
     TK_KWD,
@@ -61,6 +71,7 @@ struct Token {
     int val;
     char *str;
     int len;
+    Location *loc;
 };
 
 void tokenize(char *p);
@@ -110,6 +121,7 @@ struct Node {
     char *name;     // ND_CALL, ND_LVAR, ND_STRING
     int len;        // ND_CALL, ND_STRING[
     Type *type;
+    Location *loc;
 };
 
 struct Func {
@@ -119,6 +131,7 @@ struct Func {
     Vec *block;
     int offset;
     Type *ret_type;
+    Location *loc;
 };
 
 struct String {

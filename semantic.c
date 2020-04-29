@@ -71,7 +71,7 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
     if (node->kind == ND_VARDECL) {
         int idx = index_of_lvar(node->lhs);
         if (scope_start <= idx && idx < vec_len(local_vars))
-            error("duplicate variable");
+            error_loc(node->loc, "duplicate variable declaration");
 
         if (node->rhs != NULL) {
             sema_expr(node->rhs);
@@ -79,9 +79,9 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
                 if (node->lhs->type->ptr_to->ty == TY_ARRAY && node->rhs->kind == ND_STRING) {
                     // support string literal
                 } else
-                    error ("unsupported array initialization");
+                    error_loc(node->loc, "unsupported array initialization");
             } else if (!assignable(node->lhs->type, node->rhs->type))
-                error("type mismatch in a variable declaration");
+                error_loc(node->loc, "type mismatch in a variable declaration");
         }
 
         node->lhs->val = 8 + scoped_stack_space;
@@ -142,7 +142,7 @@ void sema_expr(Node* node) {
         Node *resolved = find_lvar_sema(node);
 
         if (resolved == NULL)
-            error("undefined variable");
+            error_loc(node->loc, "undefined variable");
         node->type = resolved->type;
         return;
     }
@@ -151,7 +151,7 @@ void sema_expr(Node* node) {
         sema_lval(node->lhs);
         sema_expr(node->rhs);
         if (!assignable(node->lhs->type, node->rhs->type))
-            error("type mismatch in an assignment statment");
+            error_loc(node->loc, "type mismatch in an assignment statment");
         node->type = node->lhs->type;
         return;
     }
@@ -165,7 +165,7 @@ void sema_expr(Node* node) {
     if (node->kind == ND_DEREF) {
         sema_expr(node->lhs);
         if (!is_pointer_compat(node->lhs->type))
-            error("dereferencing non-pointer is not allowed");
+            error_loc(node->loc, "dereferencing non-pointer is not allowed");
         node->type = node->lhs->type->ptr_to;
         return;
     }
@@ -180,11 +180,11 @@ void sema_expr(Node* node) {
     if (node->kind == ND_CALL) {
         Func *f = find_func(node);
         if (f == NULL)
-            error("undefined function");
+            error_loc(node->loc, "undefined function");
 
         int params_len = vec_len(node->block);
         if (params_len != vec_len(f->params))
-            error("invalid number of argument(s)");
+            error_loc(node->loc, "invalid number of argument(s)");
         for (int i = 0; i < params_len; i++)
             sema_expr(vec_at(node->block, i));
 
@@ -208,7 +208,7 @@ void sema_expr(Node* node) {
         } else if (is_int(lty) && is_pointer_compat(rty)) {
             node->type = coerce_pointer(rty);
         } else {
-            error("unsupported addition");
+            error_loc(node->loc, "unsupported addition");
         }
         return;
     }
@@ -219,7 +219,7 @@ void sema_expr(Node* node) {
         } else if (is_pointer_compat(lty) && is_int(rty)) {
             node->type = coerce_pointer(lty);
         } else {
-            error("unsupported subtraction");
+            error_loc(node->loc, "unsupported subtraction");
         }
         return;
     }
@@ -228,7 +228,7 @@ void sema_expr(Node* node) {
         if (is_int(lty) && is_int(rty)) {
             node->type = type_int;
         } else {
-            error("unsupported addition");
+            error_loc(node->loc, "unsupported multiplication");
         }
         return;
     }
@@ -237,7 +237,7 @@ void sema_expr(Node* node) {
         if (is_int(lty) && is_int(rty)) {
             node->type = type_int;
         } else {
-            error("unsupported addition");
+            error_loc(node->loc, "unsupported division");
         }
         return;
     }
@@ -261,7 +261,7 @@ void sema_expr(Node* node) {
         node->type = type_int;
         return;
     }
-    error("unsupported feature");
+    error_loc(node->loc, "unsupported feature");
 }
 
 void sema_lval(Node *node) {
@@ -269,7 +269,7 @@ void sema_lval(Node *node) {
         sema_expr(node);
         return;
     }
-    error("should be left value");
+    error_loc(node->loc, "should be left value");
 }
 
 bool assignable(Type *lhs, Type *rhs) {

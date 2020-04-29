@@ -8,42 +8,75 @@
 #include "ccatd.h"
 
 // tokenize
+//
+int loc_line = 1;
+int loc_column = 1;
+
+void skip_column(char **p, int step) {
+    *p += step;
+    loc_column += step;
+}
+
+void skip_line(char **p) {
+    (*p)++;
+    loc_line++;
+    loc_column = 1;
+}
+
+void skip_char(char **p, char ch) {
+    if (ch == '\n')
+        skip_line(p);
+    else
+        skip_column(p, 1);
+}
 
 Token *new_token(Token_kind kind, char *str, int len) {
     Token *tok = calloc(1, sizeof(Token));
     tok->kind = kind;
     tok->str = str;
     tok->len = len;
+
+    tok->loc = calloc(1, sizeof(Location));
+    tok->loc->line = loc_line;
+    tok->loc->column = loc_column;
+
     return tok;
 }
 
 void tokenize(char *p) {
+    loc_line = 1;
+    loc_column = 1;
+
     Vec *vec = vec_new();
 
     while (*p) {
         if (isspace(*p)) {
-            p++;
+            skip_char(&p, *p);
             continue;
         }
 
         if (!memcmp(p, "//", 2)) {
-            while (*p != '\n') p++;
-            p++;
+            while (*p != '\n') skip_column(&p, 1);
+            skip_column(&p, 1);
             continue;
         }
 
         if (!memcmp(p, "/*", 2)) {
-            p = strstr(p + 2, "*/");
-            if (p == NULL)
-                error("Closing comment \"*/\" expected");
-            p += 2; // "*/"
+            while (p && memcmp(p, "*/", 2))
+                skip_char(&p, *p);
+            if (!*p) {
+                error_loc2(loc_line, loc_column, "Closing comment \"*/\" expected");
+            }
+            skip_column(&p, 2); // "*/"
             continue;
         }
 
         if (*p == '"') {
-            p++; // '"'
+            skip_column(&p, 1); // '"'
             char *q = p;
-            while (*q != '"') q++;
+            while (*q && *q != '"') q++;
+            if (!*q)
+                error_loc2(loc_line, loc_column, "Closing quote \"\"\" expected");
             int len = q - p;
 
             String *str = calloc(1, sizeof(String));
@@ -52,13 +85,13 @@ void tokenize(char *p) {
             vec_push(environment->string_literals, str);
             vec_push(vec, new_token(TK_STRING, p, len));
 
-            p = q+1; // next to '"'
+            skip_column(&p, (q - p) + 1); // next to '"'
             continue;
         }
 
         if ((*p == '=' || *p == '!' || *p == '<' || *p == '>') && p+1 && *(p+1) == '=') {
             vec_push(vec, new_token(TK_KWD, p, 2));
-            p += 2;
+            skip_column(&p, 2);
             continue;
         }
 
@@ -67,14 +100,16 @@ void tokenize(char *p) {
                 *p == '{' || *p == '}' || *p == ',' || *p == '&' ||
                 *p == '[' || *p == ']') {
             vec_push(vec, new_token(TK_KWD, p, 1));
-            p += 1;
+            skip_column(&p, 1);
             continue;
         }
 
         if (isdigit(*p)) {
             Token *tk = new_token(TK_NUM, p, 0);
-            tk->val = strtol(p, &p, 10);
+            char *q = p;
+            tk->val = strtol(q, &q, 10);
             vec_push(vec, tk);
+            skip_column(&p, (q - p));
             continue;
         }
 
@@ -83,42 +118,42 @@ void tokenize(char *p) {
         int len = q - p;
         if (len == 6 && !memcmp("return", p, 6)) {
             vec_push(vec, new_token(TK_RETURN, p, 0));
-            p += 6;
+            skip_column(&p, 6);
             continue;
         }
         if (len == 2 && !memcmp("if", p, 2)) {
             vec_push(vec, new_token(TK_IF, p, 0));
-            p += 2;
+            skip_column(&p, 2);
             continue;
         }
         if (len == 4 && !memcmp("else", p, 4)) {
             vec_push(vec, new_token(TK_ELSE, p, 0));
-            p += 4;
+            skip_column(&p, 4);
             continue;
         }
         if (len == 5 && !memcmp("while", p, 5)) {
             vec_push(vec, new_token(TK_WHILE, p, 0));
-            p += 5;
+            skip_column(&p, 5);
             continue;
         }
         if (len == 3 && !memcmp("for", p, 3)) {
             vec_push(vec, new_token(TK_FOR, p, 0));
-            p += 3;
+            skip_column(&p, 3);
             continue;
         }
         if (len == 6 && !memcmp("sizeof", p, 6)) {
             vec_push(vec, new_token(TK_KWD, p, 6));
-            p += 6;
+            skip_column(&p, 6);
             continue;
         }
 
         if (len > 0) {
             vec_push(vec, new_token(TK_IDT, p, q - p));
-            p = q;
+            skip_column(&p, q - p);
             continue;
         }
 
-        error("an unknown character was found");
+        error_loc2(loc_line, loc_column, "an unknown character was found");
     }
 
     tokens = vec;
@@ -127,12 +162,12 @@ void tokenize(char *p) {
 Vec *tokens;
 int index = 0;
 
-bool consume_keyword(char *str) {
+Token *consume_keyword(char *str) {
     Token *tk = vec_at(tokens, index);
     if (tk->kind != TK_KWD || strlen(str) != tk->len || memcmp(str, tk->str, tk->len))
-        return false;
+        return NULL;
     index++;
-    return true;
+    return tk;
 }
 
 bool lookahead_keyword(char *str) {
@@ -155,10 +190,16 @@ Token *lookahead(Token_kind kind) {
     return tk;
 }
 
+Token *lookahead_any() {
+    if (index >= vec_len(tokens))
+        return NULL;
+    return vec_at(tokens, index);
+}
+
 Token *expect(Token_kind kind) {
     Token *tk = vec_at(tokens, index);
     if (tk->kind != kind)
-        error("%s expected\n", kind);
+        error_loc(tk->loc, "%s expected\n", kind);
     index++;
     return tk;
 }
@@ -166,7 +207,7 @@ Token *expect(Token_kind kind) {
 void expect_keyword(char* str) {
     Token *tk = vec_at(tokens, index);
     if (tk->kind != TK_KWD || strlen(str) != tk->len || memcmp(str, tk->str, tk->len))
-        error("\"%s\" expected", str);
+        error_loc(tk->loc, "\"%s\" expected", str);
     index++;
 }
 
@@ -194,19 +235,21 @@ Type *consume_type() {
 
 // parse
 
-Node *new_op(Node_kind kind, Node* lhs, Node* rhs) {
+Node *new_op(Node_kind kind, Node *lhs, Node *rhs, Location *loc) {
     Node *node = calloc(1, sizeof(Node));
     node->kind = kind;
     node->lhs = lhs;
     node->rhs = rhs;
+    node->loc = loc;
     return node;
 }
 
-Node *new_node_num(int v) {
+Node *new_node_num(int v, Location *loc) {
     Node *node = calloc(1, sizeof(Node));
     node->type = type_int;
     node->kind = ND_NUM;
     node->val = v;
+    node->loc = loc;
     return node;
 }
 
@@ -247,6 +290,7 @@ void toplevel() {
         node->kind = ND_GVAR;
         node->name = tk->str;
         node->len = tk->len;
+        node->loc = tk->loc;
 
         while (consume_keyword("[")) {
             Token *len = expect(TK_NUM);
@@ -270,6 +314,7 @@ Func *func(Type *ty, Token *name) {
     func->len = name->len;
     func->params = par;
     func->block = blk;
+    func->loc = name->loc;
 
     func->ret_type = ty;
     return func;
@@ -278,7 +323,7 @@ Func *func(Type *ty, Token *name) {
 Type *type() {
     Type *typ = consume_type();
     if (typ == NULL)
-        error("unknown type");
+        error_loc(lookahead_any()->loc, "unknown type");
 
     while (consume_keyword("*"))
         typ = ptr_of(typ);
@@ -313,13 +358,15 @@ Vec *block() {
 }
 
 Node *stmt() {
+    Token *tk;
     Node *node;
-    if (consume(TK_RETURN)) {
+    if ((tk = consume(TK_RETURN))) {
         node = calloc(1, sizeof(Node));
         node->kind = ND_RETURN;
         node->lhs = expr();
+        node->loc = tk->loc;
         expect_keyword(";");
-    } else if (consume(TK_IF)) {
+    } else if ((tk = consume(TK_IF))) {
         node = calloc(1, sizeof(Node));
         node->kind = ND_IF;
         expect_keyword("(");
@@ -327,16 +374,19 @@ Node *stmt() {
         expect_keyword(")");
         node->lhs = stmt();
         node->rhs = consume(TK_ELSE) ? stmt() : NULL;
-    } else if (consume(TK_WHILE)) {
+        node->loc = tk->loc;
+    } else if ((tk = consume(TK_WHILE))) {
         node = calloc(1, sizeof(Node));
         node->kind = ND_WHILE;
         expect_keyword("(");
         node->cond = expr();
         expect_keyword(")");
         node->body = stmt();
-    } else if (consume(TK_FOR)) {
+        node->loc = tk->loc;
+    } else if ((tk = consume(TK_FOR))) {
         node = calloc(1, sizeof(Node));
         node->kind = ND_FOR;
+        node->loc = tk->loc;
         expect_keyword("(");
         if (!consume_keyword(";")) {
             node->lhs = expr();
@@ -367,7 +417,7 @@ Node *stmt() {
         if (lhs == NULL)
             lhs = push_lvar(typ, id);
 
-        node = new_op(ND_VARDECL, lhs, rhs);
+        node = new_op(ND_VARDECL, lhs, rhs, id->loc);
     } else {
         node = expr();
         expect_keyword(";");
@@ -385,18 +435,20 @@ void type_array(Type **t) {
 
 Node *expr() {
     Node *node = equal();
-    if (consume_keyword("="))
-        node = new_op(ND_ASGN, node, expr());
+    Token *tk;
+    if ((tk = consume_keyword("=")))
+        node = new_op(ND_ASGN, node, expr(), tk->loc);
     return node;
 }
 
 Node *equal() {
     Node *node = comp();
     for (;;) {
-        if (consume_keyword("=="))
-            node = new_op(ND_EQ, node, comp());
-        else if (consume_keyword("!="))
-            node = new_op(ND_NEQ, node, comp());
+        Token *tk;
+        if ((tk = consume_keyword("==")))
+            node = new_op(ND_EQ, node, comp(), tk->loc);
+        else if ((tk = consume_keyword("!=")))
+            node = new_op(ND_NEQ, node, comp(), tk->loc);
         else break;
     }
     return node;
@@ -405,14 +457,15 @@ Node *equal() {
 Node *comp() {
     Node *node = add();
     for (;;) {
-        if (consume_keyword("<"))
-            node = new_op(ND_LT, node, add());
-        else if (consume_keyword("<="))
-            node = new_op(ND_LTE, node, add());
-        else if (consume_keyword(">"))
-            node = new_op(ND_LT, add(), node);
-        else if (consume_keyword(">="))
-            node = new_op(ND_LTE, add(), node);
+        Token *tk;
+        if ((tk = consume_keyword("<")))
+            node = new_op(ND_LT, node, add(), tk->loc);
+        else if ((tk = consume_keyword("<=")))
+            node = new_op(ND_LTE, node, add(), tk->loc);
+        else if ((tk = consume_keyword(">")))
+            node = new_op(ND_LT, add(), node, tk->loc);
+        else if ((tk = consume_keyword(">=")))
+            node = new_op(ND_LTE, add(), node, tk->loc);
         else break;
     }
     return node;
@@ -421,10 +474,11 @@ Node *comp() {
 Node *add() {
     Node *node = mul();
     for (;;) {
-        if (consume_keyword("+"))
-            node = new_op(ND_ADD, node, mul());
-        else if (consume_keyword("-"))
-            node = new_op(ND_SUB, node, mul());
+        Token *tk;
+        if ((tk = consume_keyword("+")))
+            node = new_op(ND_ADD, node, mul(), tk->loc);
+        else if ((tk = consume_keyword("-")))
+            node = new_op(ND_SUB, node, mul(), tk->loc);
         else break;
     }
     return node;
@@ -433,36 +487,41 @@ Node *add() {
 Node *mul() {
     Node *node = unary();
     for (;;) {
-        if (consume_keyword("*"))
-            node = new_op(ND_MUL, node, unary());
-        else if (consume_keyword("/"))
-            node = new_op(ND_DIV, node, unary());
+        Token *tk;
+        if ((tk = consume_keyword("*")))
+            node = new_op(ND_MUL, node, unary(), tk->loc);
+        else if ((tk = consume_keyword("/")))
+            node = new_op(ND_DIV, node, unary(), tk->loc);
         else break;
     }
     return node;
 }
 
 Node *unary() {
-    if (consume_keyword("sizeof")) {
+    Token *tk;
+    if ((tk = consume_keyword("sizeof"))) {
         Node *node = calloc(1, sizeof(Node));
         node->kind = ND_SIZEOF;
         node->lhs = unary();
+        node->loc = tk->loc;
         return node;
     }
     if (consume_keyword("+"))
         return term();
-    if (consume_keyword("-"))
-        return new_op(ND_SUB, new_node_num(0), term());
-    if (consume_keyword("&")) {
+    if ((tk = consume_keyword("-")))
+        return new_op(ND_SUB, new_node_num(0, NULL), term(), tk->loc);
+    if ((tk = consume_keyword("&"))) {
         Node *node = calloc(1, sizeof(Node));
         node->kind = ND_ADDR;
         node->lhs = unary();
+        node->loc = tk->loc;
         return node;
     }
-    if (consume_keyword("*")) {
+    if ((tk = consume_keyword("*"))) {
         Node *node = calloc(1, sizeof(Node));
         node->kind = ND_DEREF;
         node->lhs = unary();
+        node->loc = tk->loc;
         return node;
     }
     return term();
@@ -475,7 +534,7 @@ Node *term() {
         return node;
     }
 
-    Node *node;
+    Node *node = NULL;
     Token *tk = consume(TK_IDT);
     if (tk) {
         if (consume_keyword("(")) { // CALL
@@ -486,16 +545,15 @@ Node *term() {
             node->name = tk->str;
             node->len = tk->len;
             node->block = vec;
+            node->loc = tk->loc;
         } else { // variable
             node = find_var(tk);
             if (node == NULL) {
-                fprintf(stderr, "variable not defined: ");
-                fnputs(stdout, tk->str, tk->len);
-                error("\n");
+                error_loc(tk->loc, "variable not defined");
             }
         }
     } else if ((tk = consume(TK_NUM))) { // number
-        node = new_node_num(tk->val);
+        node = new_node_num(tk->val, tk->loc);
     } else if ((tk = consume(TK_STRING))) {
         node = calloc(1, sizeof(Node));
         node->kind = ND_STRING;
@@ -504,14 +562,17 @@ Node *term() {
         node->type = type_ptr_char;
     }
 
-    if (!node)
-        error("invalid expression or statement");
+    if (node == NULL) {
+        if (tk == NULL)
+            tk = lookahead_any();
+        error_loc(tk->loc, "invalid expression or statement");
+    }
 
-    while (consume_keyword("[")) {
+    while ((tk = consume_keyword("["))) {
         Node *index_node = expr();
         expect_keyword("]");
 
-        Node *add_node = new_op(ND_ADD, node, index_node);
+        Node *add_node = new_op(ND_ADD, node, index_node, tk->loc);
 
         Node *next_node = calloc(1, sizeof(Node));
         next_node->kind = ND_DEREF;
