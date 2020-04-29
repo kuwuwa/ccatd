@@ -162,17 +162,30 @@ void tokenize(char *p) {
 Vec *tokens;
 int index = 0;
 
-Token *consume_keyword(char *str) {
-    Token *tk = vec_at(tokens, index);
-    if (tk->kind != TK_KWD || strlen(str) != tk->len || memcmp(str, tk->str, tk->len))
+Token *lookahead_any() {
+    if (index >= vec_len(tokens))
         return NULL;
-    index++;
+    return vec_at(tokens, index);
+}
+
+Token *lookahead(Token_kind kind) {
+    Token *tk = lookahead_any();
+    if (tk->kind != kind)
+        return NULL;
     return tk;
 }
 
 bool lookahead_keyword(char *str) {
-    Token *tk = vec_at(tokens, index);
-    return tk->kind == TK_KWD && strlen(str) == tk->len && !memcmp(str, tk->str, tk->len);
+    Token *tk = lookahead_any();
+    return tk != NULL && tk->kind == TK_KWD && strlen(str) == tk->len && !memcmp(str, tk->str, tk->len);
+}
+
+Token *consume_keyword(char *str) {
+    Token *tk = lookahead(TK_KWD);
+    if (tk == NULL || tk->kind != TK_KWD || strlen(str) != tk->len || memcmp(str, tk->str, tk->len))
+        return NULL;
+    index++;
+    return tk;
 }
 
 Token *consume(Token_kind kind) {
@@ -181,19 +194,6 @@ Token *consume(Token_kind kind) {
         return NULL;
     index++;
     return tk;
-}
-
-Token *lookahead(Token_kind kind) {
-    Token *tk = vec_at(tokens, index);
-    if (tk->kind != kind)
-        return NULL;
-    return tk;
-}
-
-Token *lookahead_any() {
-    if (index >= vec_len(tokens))
-        return NULL;
-    return vec_at(tokens, index);
 }
 
 Token *expect(Token_kind kind) {
@@ -235,6 +235,13 @@ Type *consume_type() {
 
 // parse
 
+Node *new_node(Node_kind kind, Location* loc) {
+    Node *node = calloc(1, sizeof(Node));
+    node->kind = kind;
+    node->loc = loc;
+    return node;
+}
+
 Node *new_op(Node_kind kind, Node *lhs, Node *rhs, Location *loc) {
     Node *node = calloc(1, sizeof(Node));
     node->kind = kind;
@@ -245,11 +252,10 @@ Node *new_op(Node_kind kind, Node *lhs, Node *rhs, Location *loc) {
 }
 
 Node *new_node_num(int v, Location *loc) {
-    Node *node = calloc(1, sizeof(Node));
+    Node *node = new_node(ND_NUM, loc);
     node->type = type_int;
     node->kind = ND_NUM;
     node->val = v;
-    node->loc = loc;
     return node;
 }
 
@@ -286,11 +292,9 @@ void toplevel() {
         Func *f = func(ty, tk);
         vec_push(environment->functions, f);
     } else {
-        Node *node = calloc(1, sizeof(Node));
-        node->kind = ND_GVAR;
+        Node *node = new_node(ND_GVAR, tk->loc);
         node->name = tk->str;
         node->len = tk->len;
-        node->loc = tk->loc;
 
         while (consume_keyword("[")) {
             Token *len = expect(TK_NUM);
@@ -367,32 +371,23 @@ Node *stmt() {
     Token *tk;
     Node *node;
     if ((tk = consume(TK_RETURN))) {
-        node = calloc(1, sizeof(Node));
-        node->kind = ND_RETURN;
-        node->lhs = expr();
-        node->loc = tk->loc;
+        node = new_op(ND_RETURN, expr(), NULL, tk->loc);
         expect_keyword(";");
     } else if ((tk = consume(TK_IF))) {
-        node = calloc(1, sizeof(Node));
-        node->kind = ND_IF;
+        node = new_node(ND_IF, tk->loc);
         expect_keyword("(");
         node->cond = expr();
         expect_keyword(")");
         node->lhs = stmt();
         node->rhs = consume(TK_ELSE) ? stmt() : NULL;
-        node->loc = tk->loc;
     } else if ((tk = consume(TK_WHILE))) {
-        node = calloc(1, sizeof(Node));
-        node->kind = ND_WHILE;
+        node = new_node(ND_WHILE, tk->loc);
         expect_keyword("(");
         node->cond = expr();
         expect_keyword(")");
         node->body = stmt();
-        node->loc = tk->loc;
     } else if ((tk = consume(TK_FOR))) {
-        node = calloc(1, sizeof(Node));
-        node->kind = ND_FOR;
-        node->loc = tk->loc;
+        node = new_node(ND_FOR, tk->loc);
         expect_keyword("(");
         if (!consume_keyword(";")) {
             node->lhs = expr();
@@ -409,8 +404,7 @@ Node *stmt() {
         node->body = stmt();
     } else if (lookahead_keyword("{")) {
         Vec *vec = block();
-        node = calloc(1, sizeof(Node));
-        node->kind = ND_BLOCK;
+        node = new_node(ND_BLOCK, NULL);
         node->block = vec;
     } else if (lookahead_any_type()) {
         Type *typ = type();
@@ -505,31 +499,16 @@ Node *mul() {
 
 Node *unary() {
     Token *tk;
-    if ((tk = consume_keyword("sizeof"))) {
-        Node *node = calloc(1, sizeof(Node));
-        node->kind = ND_SIZEOF;
-        node->lhs = unary();
-        node->loc = tk->loc;
-        return node;
-    }
+    if ((tk = consume_keyword("sizeof")))
+        return new_op(ND_SIZEOF, unary(), NULL, tk->loc);
     if (consume_keyword("+"))
         return term();
     if ((tk = consume_keyword("-")))
         return new_op(ND_SUB, new_node_num(0, NULL), term(), tk->loc);
-    if ((tk = consume_keyword("&"))) {
-        Node *node = calloc(1, sizeof(Node));
-        node->kind = ND_ADDR;
-        node->lhs = unary();
-        node->loc = tk->loc;
-        return node;
-    }
-    if ((tk = consume_keyword("*"))) {
-        Node *node = calloc(1, sizeof(Node));
-        node->kind = ND_DEREF;
-        node->lhs = unary();
-        node->loc = tk->loc;
-        return node;
-    }
+    if ((tk = consume_keyword("&")))
+        return new_op(ND_ADDR, unary(), NULL, tk->loc);
+    if ((tk = consume_keyword("*")))
+        return new_op(ND_DEREF, unary(), NULL, tk->loc);
     return term();
 }
 
@@ -546,12 +525,10 @@ Node *term() {
         if (consume_keyword("(")) { // CALL
             Vec *vec = args();
 
-            node = calloc(1, sizeof(Node));
-            node->kind = ND_CALL;
+            node = new_node(ND_CALL, tk->loc);
             node->name = tk->str;
             node->len = tk->len;
             node->block = vec;
-            node->loc = tk->loc;
         } else { // variable
             node = find_var(tk);
             if (node == NULL) {
@@ -561,8 +538,7 @@ Node *term() {
     } else if ((tk = consume(TK_NUM))) { // number
         node = new_node_num(tk->val, tk->loc);
     } else if ((tk = consume(TK_STRING))) {
-        node = calloc(1, sizeof(Node));
-        node->kind = ND_STRING;
+        node = new_node(ND_STRING, tk->loc);
         node->name = tk->str;
         node->len = tk->len;
         node->type = type_ptr_char;
@@ -580,8 +556,7 @@ Node *term() {
 
         Node *add_node = new_op(ND_ADD, node, index_node, tk->loc);
 
-        Node *next_node = calloc(1, sizeof(Node));
-        next_node->kind = ND_DEREF;
+        Node *next_node = new_node(ND_DEREF, tk->loc);
         next_node->lhs = add_node;
 
         node = next_node;
@@ -624,8 +599,7 @@ Node *find_var(Token *token) {
 }
 
 Node *push_lvar(Type *ty, Token *tk) {
-    Node *var = calloc(1, sizeof(Node));
-    var->kind = ND_LVAR;
+    Node *var = new_node(ND_LVAR, NULL);
     var->name = tk->str;
     var->type = ty;
     var->len = tk->len;
