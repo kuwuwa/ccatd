@@ -1,1 +1,3 @@
-int main() { foo(); }
+int main() {
+    foo();
+}

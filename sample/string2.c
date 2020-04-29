@@ -1,1 +1,4 @@
-int main() { print("hack"); return 0; }
+int main() {
+    print("hack");
+    return 0;
+}
