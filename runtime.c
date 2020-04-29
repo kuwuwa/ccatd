@@ -20,3 +20,10 @@ void alloc4(int ** arr, int v1, int v2, int v3, int v4) {
 void print(char *str) {
     printf("%s", str);
 }
+
+void assert_equals(int v1, int v2) {
+    if (v1 != v2) {
+        fprintf(stderr, "expected: %d, actual: %d\n", v2, v1);
+        exit(1);
+    }
+}

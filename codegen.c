@@ -5,7 +5,6 @@
 #include "ccatd.h"
 
 char *arg_regs64[6] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
-char *arg_regs32[6] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
 
 void gen_globals();
 void gen(Node*);
@@ -127,9 +126,15 @@ void gen(Node *node) {
 
     if (node->kind == ND_DEREF) {
         gen(node->lhs);
-        printf("  pop rax\n"
-               "  mov rax, [rax]\n"
-               "  push rax\n");
+        printf("  pop rax\n");
+        int size = type_size(node->type);
+        if (size == 1)
+            printf("  movsx eax, BYTE PTR [rax]\n");
+        else if (size == 4)
+            printf("  mov eax, [rax]\n");
+        else 
+            printf("  mov rax, [rax]\n");
+        printf("  push rax\n");
         return;
     }
 
@@ -345,9 +350,13 @@ bool is_expr(Node_kind kind) {
 void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
     if (lt->ty == TY_INT && rt->ty == TY_INT) {
     } else if (lt->ty == TY_INT) {
-        printf("  imul rax, %d\n", type_size(rt->ptr_to));
+        int coeff = type_size(rt->ptr_to);
+        if (coeff != 1)
+            printf("  imul rax, %d\n", coeff);
     } else if (rt->ty == TY_INT) {
-        printf("  imul rdi, %d\n", type_size(lt->ptr_to));
+        int coeff = type_size(lt->ptr_to);
+        if (coeff != 1)
+            printf("  imul rdi, %d\n", coeff);
     } else {
         error("addition/subtraction of two pointers is not allowed");
     }

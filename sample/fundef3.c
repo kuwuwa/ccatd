@@ -1,12 +1,12 @@
-int f(int x) {
+int g(int x) {
     return x*4;
 }
 
-int g(int x, int y) {
+int h(int x, int y) {
     int z = x + f(x+y);
     return z;
 }
 
 int main() {
-    return g(10,9);
+    return h(10,9);
 }

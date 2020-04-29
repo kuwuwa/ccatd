@@ -77,6 +77,14 @@ void init() {
             1,
             type_int // void
     );
+
+    Type *assert_equals_args[2] = {type_int, type_int};
+    push_function(
+            "assert_equals",
+            assert_equals_args,
+            2,
+            type_int // void
+    );
 }
 
 char *read_file(char *path) {

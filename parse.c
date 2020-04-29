@@ -57,7 +57,7 @@ void tokenize(char *p) {
 
         if (!memcmp(p, "//", 2)) {
             while (*p != '\n') skip_column(&p, 1);
-            skip_column(&p, 1);
+            skip_line(&p);
             continue;
         }
 
@@ -350,10 +350,16 @@ Vec *params() {
 }
 
 Vec *block() {
+    int revert_locals_len = vec_len(locals);
+
     Vec *vec = vec_new();
     expect_keyword("{");
     while (!consume_keyword("}"))
         vec_push(vec, stmt());
+
+    while (vec_len(locals) > revert_locals_len)
+        vec_pop(locals);
+
     return vec;
 }
 
