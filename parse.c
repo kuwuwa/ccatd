@@ -266,6 +266,10 @@ void type_array(Type**);
 Vec *params();
 Node *stmt();
 Vec *block();
+
+Node *rhs_expr();
+Node *array(Location *start);
+
 Node *expr();
 Node *equal();
 Node *comp();
@@ -273,7 +277,10 @@ Node *add();
 Node *mul();
 Node *unary();
 Node *term();
+
 Vec *args();
+
+// initializer
 
 Node *find_var(Token*);
 Node *push_lvar(Type*, Token*);
@@ -302,6 +309,9 @@ void toplevel() {
 
             ty = array_of(ty, len->val);
         }
+
+        node->rhs = consume_keyword("=") ? rhs_expr() : NULL;
+
         expect_keyword(";");
 
         node->type = ty;
@@ -410,7 +420,7 @@ Node *stmt() {
         Type *typ = type();
         Token *id = expect(TK_IDT);
         type_array(&typ);
-        Node *rhs = consume_keyword("=") ? expr() : NULL;
+        Node *rhs = consume_keyword("=") ? rhs_expr() : NULL;
         expect_keyword(";");
 
         Node *lhs = find_var(id);
@@ -431,6 +441,29 @@ void type_array(Type **t) {
         *t = array_of(*t, len->val);
         expect_keyword("]");
     }
+}
+
+Node *rhs_expr() {
+    Token *tk = NULL;
+    if ((tk = consume_keyword("{")))
+        return array(tk->loc);
+
+    return expr();
+}
+
+Node *array(Location *start) {
+    Node *ret = new_node(ND_ARRAY, start);
+    ret->block = vec_new();
+    if (consume_keyword("}"))
+        return ret;
+
+    vec_push(ret->block, expr());
+
+    while (!consume_keyword("}")) {
+        expect_keyword(",");
+        vec_push(ret->block, expr());
+    }
+    return ret;
 }
 
 Node *expr() {
@@ -513,15 +546,16 @@ Node *unary() {
 }
 
 Node *term() {
-    if (consume_keyword("(")) {
+    Token *tk = NULL;
+    if ((tk = consume_keyword("("))) {
         Node *node = expr();
-        expect_keyword(")");
+        if (!consume_keyword(")"))
+            error_loc(tk->loc, ") couldn't be found");
         return node;
     }
 
     Node *node = NULL;
-    Token *tk = consume(TK_IDT);
-    if (tk) {
+    if ((tk = consume(TK_IDT))) {
         if (consume_keyword("(")) { // CALL
             Vec *vec = args();
 
@@ -581,7 +615,7 @@ Node *find_var(Token *token) {
     if (token->kind != TK_IDT)
         error("find_lvar: lvar expected\n");
 
-    int locals_len = vec_len(locals);
+    int locals_len = locals == NULL ? 0 : vec_len(locals);
     for (int i = 0; i < locals_len; i++) {
         Node *var = vec_at(locals, i);
         if (token->len == var->len && memcmp(token->str, var->name, token->len) == 0)

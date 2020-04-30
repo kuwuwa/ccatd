@@ -120,6 +120,8 @@ int main(int argc, char **argv) {
     tokenize(code);
     parse();
 
+    sema_globals();
+
     for (int i = 0; i < vec_len(environment->functions); i++) {
         sema_func(vec_at(environment->functions, i));
     }
@@ -130,8 +132,9 @@ int main(int argc, char **argv) {
     gen_globals();
 
     int len = vec_len(environment->functions);
-    for (int i = 0; i < len; i++)
+    for (int i = 0; i < len; i++) {
         gen_func(vec_at(environment->functions, i));
+    }
     return 0;
 }
 

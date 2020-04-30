@@ -7,6 +7,7 @@
 char *arg_regs64[6] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
 
 void gen_globals();
+void gen_const(Node *node);
 void gen(Node*);
 void gen_stmt(Node*);
 void gen_func(Func*);
@@ -20,16 +21,23 @@ char *word_of_type(Type*);
 // generate global variables
 
 void gen_globals() {
-    printf("  .bss\n");
+    printf("  .data\n");
     for (int i = 0; i < vec_len(environment->globals); i++) {
         Node *global = vec_at(environment->globals, i);
 
         printf("  .globl ");
         fnputs(stdout, global->name, global->len);
         printf("\n");
+    }
 
+    for (int i = 0; i < vec_len(environment->globals); i++) {
+        Node *global = vec_at(environment->globals, i);
         fnputs(stdout, global->name, global->len);
-        printf(":\n  .zero %d\n", type_size(global->type));
+        printf(":\n");
+        if (global->rhs == NULL)
+            printf("  .zero %d\n", type_size(global->type));
+        else
+            gen_const(global->rhs);
     }
     printf("  .text\n");
     for (int i = 0; i < vec_len(environment->string_literals); i++) {
@@ -38,6 +46,38 @@ void gen_globals() {
         fnputs(stdout, str->ptr, str->len);
         printf("\"\n");
     }
+}
+
+void gen_const(Node *node) {
+    if (node->kind == ND_NUM && node->type == type_int) {
+        printf("  .long %d\n", node->val);
+        return;
+    }
+    if (node->kind == ND_ADDR) {
+        Node *var = node->lhs;
+        printf("  .quad ");
+        fnputs(stdout, var->name, var->len);
+        printf("\n");
+        return;
+    }
+    if (node->kind == ND_STRING) {
+        int len = vec_len(environment->string_literals);
+        for (int i = 0; i < len; i++) {
+            String *str = vec_at(environment->string_literals, i);
+            if (node->len == str->len && !memcmp(str->ptr, node->name, str->len)) {
+                printf("  .quad .LC%d\n", i);
+                return;
+            }
+        }
+    }
+    if (node->kind == ND_ARRAY) {
+        int arr_len = vec_len(node->block);
+        for (int i = 0; i < arr_len; i++)
+            gen_const(vec_at(node->block, i));
+        return;
+    }
+
+    error_loc(node->loc, "[codegen] unsupported expression in a global variable declaration");
 }
 
 // generate function

@@ -2,13 +2,18 @@
 
 #include "ccatd.h"
 
+
+void sema_globals();
+void sema_const(Type*, Node*);
 void sema_func(Func*);
 void sema_block(Vec*, Func*);
 void sema_stmt(Node*, Func*, int scope_start);
 void sema_expr(Node*);
 void sema_lval(Node*);
+void sema_array(Type*, Node*);
 
 bool assignable(Type*, Type*);
+bool assignable_decl(Type*, Type*);
 bool eq_type(Type*, Type*);
 
 Vec *func_env;
@@ -23,6 +28,64 @@ Func *find_func(Node *node);
 Type *ptr_of_array(Type* typ);
 
 // ------------------------------------------------------------
+
+void sema_globals() {
+    int globals_len = vec_len(environment->globals);
+    for (int i = 0; i < globals_len; i++) {
+        Node *g = vec_at(environment->globals, i);
+        for (int j = 0; j < i; j++) {
+            Node *h = vec_at(environment->globals, j);
+            if (g->len == h->len && memcmp(g->name, h->name, g->len) == 0)
+                error_loc(g->loc, "duplicate global variable found");
+        }
+    }
+
+    for (int i = 0; i < globals_len; i++) {
+        Node *g = vec_at(environment->globals, i);
+        if (g->kind != ND_GVAR)
+            error_loc(g->loc, "[semantic] a global variable expected");
+
+        if (g->rhs != NULL) {
+            sema_const(g->type, g->rhs);
+            if (!assignable(g->type, g->rhs->type)) {
+                error_loc(g->loc, "[semantic] type mismatch in a global variable declaration");
+            }
+        }
+    }
+}
+
+void sema_const(Type *ty, Node *node) {
+    if (node->kind == ND_NUM) {
+        if (!eq_type(ty, node->type))
+            error("[semantic] type mismatch in a global variable declaration");
+        return;
+    }
+    if (node->kind == ND_STRING) {
+        if (!eq_type(ty, node->type))
+            error("[semantic] type mismatch in a global variable declaration");
+        return;
+    }
+    if (node->kind == ND_ARRAY) {
+        int array_len = node->len;
+        for (int i = 0; i < array_len; i++) {
+            Node *e = vec_at(node->block, i);
+            sema_const(ty->ptr_to, e);
+        }
+        node->type = array_of(ty->ptr_to, array_len);
+        return;
+    }
+    if (node->kind == ND_ADDR) {
+        Node *e = node->lhs;
+        if (e->kind != ND_GVAR)
+            error_loc(e->loc, "a left value expected");
+
+        node->type = ptr_of(e->type);
+        return;
+    }
+
+    error_loc(node->loc, "[semantic] unsupported expression in a global variable expression");
+}
+
 
 void sema_func(Func *func) {
     int params_len = vec_len(func->params);
@@ -74,14 +137,18 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
             error_loc(node->loc, "duplicate variable declaration");
 
         if (node->rhs != NULL) {
-            sema_expr(node->rhs);
             if (node->lhs->type->ty == TY_ARRAY) {
-                if (node->lhs->type->ptr_to->ty == TY_ARRAY && node->rhs->kind == ND_STRING) {
-                    // support string literal
-                } else
-                    error_loc(node->loc, "unsupported array initialization");
-            } else if (!assignable(node->lhs->type, node->rhs->type))
-                error_loc(node->loc, "type mismatch in a variable declaration");
+                if (node->lhs->type->ptr_to->ty == TY_CHAR && node->rhs->kind == ND_STRING)
+                    ;
+                else if (node->rhs->kind == ND_ARRAY)
+                    sema_array(node->lhs->type, node->rhs);
+                else
+                    error_loc(node->loc, "[semantic] unsupported array initialization");
+            } else {
+                sema_expr(node->rhs);
+                if (!assignable(node->lhs->type, node->rhs->type))
+                    error_loc(node->loc, "[semantic] type mismatch in a variable declaration");
+            }
         }
 
         node->lhs->val = 8 + scoped_stack_space;
@@ -134,7 +201,8 @@ void sema_expr(Node* node) {
     }
     // ND_NUM
     if (node->kind == ND_STRING) {
-        eq_type(type_ptr_char, node->type);
+        if (!eq_type(type_ptr_char, node->type))
+            error_loc(node->loc, "[internal] string");
         return;
     }
     // ND_LVAR,
@@ -151,7 +219,7 @@ void sema_expr(Node* node) {
         sema_lval(node->lhs);
         sema_expr(node->rhs);
         if (!assignable(node->lhs->type, node->rhs->type))
-            error_loc(node->loc, "type mismatch in an assignment statment");
+            error_loc(node->loc, "[semantic] type mismatch in an assignment statment");
         node->type = node->lhs->type;
         return;
     }
@@ -191,9 +259,8 @@ void sema_expr(Node* node) {
         node->type = f->ret_type;
         return;
     }
-    if (node->kind == ND_GVAR) {
+    if (node->kind == ND_GVAR)
         return;
-    }
 
     sema_expr(node->lhs);
     sema_expr(node->rhs);
@@ -264,6 +331,16 @@ void sema_expr(Node* node) {
     error_loc(node->loc, "unsupported feature");
 }
 
+void sema_array(Type* ty, Node* arr) {
+    int array_len = vec_len(arr->block);
+    for (int i = 0; i < array_len; i++) {
+        Node *e = vec_at(arr->block, i);
+        sema_expr(e);
+        if (!eq_type(ty, e->type))
+            error_loc(e->loc, "type mismatch in array");
+    }
+}
+
 void sema_lval(Node *node) {
     if (node->kind == ND_LVAR || node->kind == ND_GVAR || node->kind == ND_DEREF) {
         sema_expr(node);
@@ -277,15 +354,12 @@ bool assignable(Type *lhs, Type *rhs) {
         return rhs == type_int || rhs == type_char;
     if (lhs == type_char)
         return rhs == type_char || rhs == type_int;
-    if (lhs->ty == TY_PTR)
+    if (is_pointer_compat(lhs))
         return is_pointer_compat(rhs) && eq_type(lhs->ptr_to, rhs->ptr_to);
-    if (lhs->ty == TY_ARRAY)
-        return false;
 
     error("[internal] assignable: unsupported type appeared");
     return false;
 }
-
 
 bool eq_type(Type* t1, Type* t2) {
     if (t1->ty == TY_PTR && t2->ty == TY_PTR) {

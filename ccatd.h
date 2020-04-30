@@ -100,6 +100,7 @@ typedef enum {
     ND_INDEX,
     ND_GVAR,
     ND_STRING,
+    ND_ARRAY,
 
     // statements
     ND_VARDECL,
@@ -178,6 +179,8 @@ Type *coerce_pointer(Type *type);
 // semantic analysis
 
 extern Vec *func_env;
+
+void sema_globals();
 
 void sema_func(Func *func);
 
