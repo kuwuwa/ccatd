@@ -4,6 +4,10 @@ int x = 20;
 char *hello_world = "Hello, World!";
 int *y = &x;
 
+int func() {
+    return 30;
+}
+
 int main() {
     //
     assert_equals(fib_arr[3], 2);
@@ -15,5 +19,7 @@ int main() {
     *y = *y + 10;
     assert_equals(x + x + x, 90);
 
+    int poyo[3] = {1, 2, 3};
+    assert_equals(poyo[2], 3);
     return 0;
 }

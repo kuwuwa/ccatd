@@ -146,13 +146,14 @@ void gen(Node *node) {
             printf("  pop %s\n", arg_regs64[i]);
         }
         stack_depth = revert_stack_depth;
-        if (stack_depth % 16 != 0)
-            printf("  sub rsp, 8\n"); // 16-byte boundary
+        int diff = (16 - stack_depth % 16) % 16;
+        if (diff != 0)
+            printf("  sub rsp, %d\n", diff); // 16-bit boundary
         printf("  call ");
         fnputs(stdout, node->name, node->len);
         printf("\n");
-        if (stack_depth % 16 != 0)
-            printf("  add rsp, 8\n"); // 16-byte boundary
+        if (diff != 0)
+            printf("  add rsp, %d\n", diff); // 16-bit boundary
 
         printf("  push rax\n");
         stack_depth += 8;
@@ -181,12 +182,31 @@ void gen(Node *node) {
     if (node->kind == ND_SIZEOF) {
         printf("  mov rax, %d\n"
                "  push %d\n", node->val, node->val);
+        stack_depth += 8;
         return;
     }
 
     if (node->kind == ND_VARDECL) {
         if (node->rhs == NULL)
             return;
+
+        if (node->rhs->kind == ND_ARRAY) {
+            int len = vec_len(node->rhs->block);
+            Type *elem_type = node->lhs->type->ptr_to;
+            for (int i = 0; i < len; i++) {
+                gen_lval(node->lhs);
+                printf("  pop rax\n");
+                printf("  add rax, %d\n", i * type_size(elem_type));
+                printf("  push rax\n");
+                Node *e = vec_at(node->rhs->block, i);
+                gen(e);
+                char *ax = ax_of_type(elem_type);
+                printf("  pop rax\n"
+                       "  pop rdi\n"
+                       "  mov [rdi], %s\n", ax);
+            }
+            return;
+        }
 
         gen_lval(node->lhs);
         gen(node->rhs);
@@ -344,7 +364,7 @@ void gen_func(Func* func) {
     for (int i = 0; i < vec_len(func->params); i++)
         printf("  push %s\n", arg_regs64[i]);
     int local_vars_space = func->offset - 8 * vec_len(func->params);
-    printf("  sub rsp, %d\n", 8 + local_vars_space);
+    printf("  sub rsp, %d\n", local_vars_space);
     stack_depth = func->offset;
     for (int i = 0; i < vec_len(func->block); i++)
         gen_stmt(vec_at(func->block, i));

@@ -16,7 +16,7 @@ try_return() {
     echo "link failed: \"$2\""
     exit 1
   fi
-  ./_temp
+  ./_temp > /dev/null
   actual="$?"
 
   if [ "$actual" != "$expected" ]; then
@@ -38,7 +38,7 @@ try_stdout() {
   actual=$(cat _temp.txt)
 
   if [ "$actual" != "$expected" ]; then
-    echo "\${filename} >> $expected expected, but actually $actual"
+    echo "\${filename} => $expected expected, but actually $actual"
     exit 1
   fi
 }
@@ -47,7 +47,7 @@ try_stdout 'sample/call2.c' 'OK'
 try_stdout 'sample/char2.c' 'Hello, World!'
 try_stdout 'sample/string2.c' 'hack'
 
-try_return 'test/test1.c' 0 > /dev/null
-try_return 'test/test2.c' 0 > /dev/null
+try_return 'test/test1.c' 0
+try_return 'test/test2.c' 0
 
 echo "Accepted!!"

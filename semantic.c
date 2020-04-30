@@ -141,7 +141,7 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
                 if (node->lhs->type->ptr_to->ty == TY_CHAR && node->rhs->kind == ND_STRING)
                     ;
                 else if (node->rhs->kind == ND_ARRAY)
-                    sema_array(node->lhs->type, node->rhs);
+                    sema_array(node->lhs->type->ptr_to, node->rhs);
                 else
                     error_loc(node->loc, "[semantic] unsupported array initialization");
             } else {
@@ -337,7 +337,7 @@ void sema_array(Type* ty, Node* arr) {
         Node *e = vec_at(arr->block, i);
         sema_expr(e);
         if (!eq_type(ty, e->type))
-            error_loc(e->loc, "type mismatch in array");
+            error_loc(e->loc, "[semantic] type mismatch in array");
     }
 }
 
@@ -346,7 +346,7 @@ void sema_lval(Node *node) {
         sema_expr(node);
         return;
     }
-    error_loc(node->loc, "should be left value");
+    error_loc(node->loc, "[semantic] should be left value");
 }
 
 bool assignable(Type *lhs, Type *rhs) {
