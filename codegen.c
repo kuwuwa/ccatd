@@ -83,6 +83,11 @@ void gen_const(Node *node) {
         int arr_len = vec_len(node->block);
         for (int i = 0; i < arr_len; i++)
             gen_const(vec_at(node->block, i));
+
+        if (arr_len < node->type->array_size)
+            printf("  .zero %d\n",
+                    (node->type->array_size - arr_len) * type_size(node->type->ptr_to));
+
         return;
     }
     if (node->kind == ND_ADD) {

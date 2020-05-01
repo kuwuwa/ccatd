@@ -49,9 +49,8 @@ void sema_globals() {
 
         if (g->rhs != NULL) {
             sema_const(g);
-            if (!assignable(g->type, g->rhs->type)) {
+            if (!assignable(g->type, g->rhs->type))
                 error_loc(g->loc, "[semantic] type mismatch in a global variable initialization");
-            }
         }
     }
 }
@@ -128,18 +127,20 @@ void sema_const_aux(Node *node) {
 }
 
 void sema_const_array(Type *type, Node *node) {
-    int array_len = node->len;
+    int array_len = vec_len(node->block);
+    if (array_len > type->array_size)
+        error("[semantic] too long array");
     for (int i = 0; i < array_len; i++) {
         Node *e = vec_at(node->block, i);
         if (e->kind == ND_ARRAY)
             sema_const_array(type->ptr_to, e);
         else {
             sema_const_aux(e);
-            if (!assignable(type, e->type))
-                error_loc(e->loc, "[semantic] type mismatch in a global array initialization");
+            if (!assignable(type->ptr_to, e->type))
+                error_loc(e->loc, "[semantic] type mismatch");
         }
     }
-    node->type = array_of(type->ptr_to, array_len);
+    node->type = type;
 }
 
 void sema_func(Func *func) {
@@ -196,7 +197,7 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
                 if (node->lhs->type->ptr_to->ty == TY_CHAR && node->rhs->kind == ND_STRING)
                     ;
                 else if (node->rhs->kind == ND_ARRAY)
-                    sema_array(node->lhs->type->ptr_to, node->rhs);
+                    sema_array(node->lhs->type, node->rhs);
                 else
                     error_loc(node->loc, "[semantic] unsupported array initialization");
             } else {
@@ -388,12 +389,20 @@ void sema_expr(Node* node) {
 
 void sema_array(Type* ty, Node* arr) {
     int array_len = vec_len(arr->block);
+    if (array_len > ty->array_size) {
+        debug("arr len: %d %d", array_len, ty->array_size);
+        error_loc(arr->loc, "[semantic] too long array");
+    }
+
+    Type *elem_type = ty->ptr_to;
     for (int i = 0; i < array_len; i++) {
         Node *e = vec_at(arr->block, i);
         sema_expr(e);
-        if (!eq_type(ty, e->type))
+        if (!eq_type(elem_type, e->type))
             error_loc(e->loc, "[semantic] type mismatch in array");
     }
+
+    arr->type = ty;
 }
 
 void sema_lval(Node *node) {

@@ -1,9 +1,10 @@
 
-int fib_arr[10] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34};
+int fib_arr[13] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34};
 int x = 20;
 char *hello_world = "Hello, World!";
 int *y = &x;
 int *z = fib_arr + 2;
+int w;
 
 int func() {
     return 30;
