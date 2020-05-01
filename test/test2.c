@@ -11,7 +11,6 @@ int func() {
 }
 
 int main() {
-    //
     assert_equals(fib_arr[3], 2);
     assert_equals(fib_arr[5], 5);
     assert_equals(fib_arr[6], 8);

@@ -1,6 +1,9 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include "ccatd.h"
+
+// Vector
 
 struct Vector {
     int len;
@@ -41,4 +44,38 @@ void *vec_at(Vec *vec, int idx) {
     if (idx < 0 || vec->len <= idx)
         return NULL;
     return vec->data[idx];
+}
+
+// StringBuilder
+
+struct StringBuilder {
+    int len; int cap;
+    char *data;
+};
+
+StringBuilder *strbld_new() {
+    StringBuilder *sb = calloc(1, sizeof(StringBuilder));
+    sb->len = 0;
+    sb->cap = 8;
+    sb->data = calloc(sb->cap, sizeof(char));
+    return sb;
+}
+
+char *strbld_build(StringBuilder *sb) {
+    char *ptr = calloc(sb->len+1, sizeof(char));
+    strncpy(ptr, sb->data, sb->len);
+    return ptr;
+}
+
+void strbld_append(StringBuilder *sb, char ch) {
+    if (sb->len == sb->cap) {
+        sb->cap *= 2;
+        sb->data = realloc(sb->data, sb->cap * sizeof(char));
+    }
+    sb->data[sb->len++] = ch;
+}
+
+void strbld_append_str(StringBuilder *sb, int len, char *ch) {
+    for (int i = 0; i < len; i++)
+        strbld_append(sb, ch[i]);
 }

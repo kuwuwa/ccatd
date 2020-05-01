@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "ccatd.h"
 
@@ -33,11 +34,6 @@ void error_loc2(int line, int col, char *fmt, ...) {
     exit(1);
 }
 
-void fnputs(FILE *fp, char *str, int n) {
-    for (int i = 0; i < n; i++)
-        putc(str[i], fp);
-}
-
 void debug(char *fmt, ...) {
     if (!debug_flag) return;
     va_list ap;
@@ -46,3 +42,8 @@ void debug(char *fmt, ...) {
     fprintf(stderr, "\n");
 }
 
+char *mkstr(char *str, int len) {
+    char *p = calloc(len+1, sizeof(char));
+    strncpy(p, str, len);
+    return p;
+}

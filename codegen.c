@@ -26,15 +26,12 @@ void gen_globals() {
     for (int i = 0; i < vec_len(environment->globals); i++) {
         Node *global = vec_at(environment->globals, i);
 
-        printf("  .globl ");
-        fnputs(stdout, global->name, global->len);
-        printf("\n");
+        printf("  .globl %s\n", global->name);
     }
 
     for (int i = 0; i < vec_len(environment->globals); i++) {
         Node *global = vec_at(environment->globals, i);
-        fnputs(stdout, global->name, global->len);
-        printf(":\n");
+        printf("%s:\n", global->name);
         if (global->rhs == NULL)
             printf("  .zero %d\n", type_size(global->type));
         else {
@@ -45,9 +42,8 @@ void gen_globals() {
     printf("  .text\n");
     for (int i = 0; i < vec_len(environment->string_literals); i++) {
         String *str = vec_at(environment->string_literals, i);
-        printf(".LC%d:\n  .string \"", i);
-        fnputs(stdout, str->ptr, str->len);
-        printf("\"\n");
+        printf(".LC%d:\n", i);
+        printf("  .string \"%s\"\n", str->ptr);
     }
 }
 
@@ -58,14 +54,11 @@ void gen_const(Node *node) {
     }
     if (node->kind == ND_ADDR) {
         Node *var = node->lhs;
-        printf("  .quad ");
-        fnputs(stdout, var->name, var->len);
-        printf("\n");
+        printf("  .quad %s\n", var->name);
         return;
     }
     if (node->kind == ND_GVAR) {
-        printf("  .quad ");
-        fnputs(stdout, node->name, node->len);
+        printf("  .quad %s\n", node->name);
         printf("\n");
         return;
     }
@@ -94,18 +87,14 @@ void gen_const(Node *node) {
         Node *var = node->kind == ND_ADDR ? node->lhs->lhs : node->lhs;
         Node *offset = node->rhs;
 
-        printf("  .quad ");
-        fnputs(stdout, var->name, var->len);
-        printf(" + %d\n", offset->val * type_size(offset->type));
+        printf("  .quad %s + %d\n", var->name, offset->val * type_size(offset->type));
         return;
     }
     if (node->kind == ND_SUB) {
         Node *var = node->lhs->lhs;
         Node *offset = node->rhs;
 
-        printf("  .quad ");
-        fnputs(stdout, var->name, var->len);
-        printf(" - %d\n", offset->val * type_size(offset->type));
+        printf("  .quad %s - %d\n", var->name, offset->val * type_size(offset->type));
         return;
     }
 
@@ -244,9 +233,7 @@ void gen(Node *node) {
         int diff = (16 - stack_depth % 16) % 16;
         if (diff != 0)
             printf("  sub rsp, %d\n", diff); // 16-bit boundary
-        printf("  call ");
-        fnputs(stdout, node->name, node->len);
-        printf("\n");
+        printf("  call %s\n", node->name);
         if (diff != 0)
             printf("  add rsp, %d\n", diff); // 16-bit boundary
 
@@ -381,15 +368,11 @@ void gen(Node *node) {
 
     if (node->kind == ND_GVAR) {
         if (node->type->ty == TY_ARRAY) {
-            printf("  mov rax, OFFSET FLAT:");
-            fnputs(stdout, node->name, node->len);
-            printf("\n");
+            printf("  mov rax, OFFSET FLAT:%s\n", node->name);
         } else {
             char *ax = ax_of_type(node->type);
             char *wo = word_of_type(node->type);
-            printf("  mov %s, %s PTR ", ax, wo);
-            fnputs(stdout, node->name, node->len);
-            printf("[rip]\n");
+            printf("  mov %s, %s PTR %s[rip]\n", ax, wo, node->name);
         }
 
         printf("  push rax\n");
@@ -452,8 +435,7 @@ void gen_stmt(Node* node) {
 }
 
 void gen_func(Func* func) {
-    fnputs(stdout, func->name, func->len);
-    printf(":\n");
+    printf("%s:\n", func->name);
     printf("  push rbp\n"
            "  mov rbp, rsp\n");
     for (int i = 0; i < vec_len(func->params); i++)
@@ -476,9 +458,7 @@ void gen_lval(Node *node) {
         stack_depth += 8;
         return;
     } else if (node->kind == ND_GVAR) {
-        printf("  mov rax, OFFSET FLAT:");
-        fnputs(stdout, node->name, node->len);
-        printf("\n");
+        printf("  mov rax, OFFSET FLAT:%s\n", node->name);
         printf("  push rax\n");
         stack_depth += 8;
         return;

@@ -16,7 +16,6 @@ void append_type_param(Vec *params, Type* t) {
 void push_function(char *name, Type **arg_types, int argc, Type *ret_type) {
     Func *func = (Func*) calloc(1, sizeof(Func));
     func->name = name;
-    func->len = strlen(name);
     func->params = vec_new();
     for (int i = 0; i < argc; i++)
         append_type_param(func->params, arg_types[i]);

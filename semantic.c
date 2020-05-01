@@ -151,10 +151,7 @@ void sema_func(Func *func) {
         for (int j = i+1; j < params_len; j++) {
             Node *pj = vec_at(func->params, j);
             if (!memcmp(pi->name, pj->name, pi->len)) {
-                fnputs(stderr, func->name, func->len);
-                fprintf(stderr, ": duplicate parameter `");
-                fnputs(stderr, pi->name, pj->len);
-                error("'");
+                error_loc(pi->loc, "%s: duplicate parameter `%s'", func->name, pi->name);
             }
         }
     }
@@ -390,7 +387,6 @@ void sema_expr(Node* node) {
 void sema_array(Type* ty, Node* arr) {
     int array_len = vec_len(arr->block);
     if (array_len > ty->array_size) {
-        debug("arr len: %d %d", array_len, ty->array_size);
         error_loc(arr->loc, "[semantic] too long array");
     }
 
@@ -456,8 +452,7 @@ Func *find_func(Node *node) {
     int funcs_len = vec_len(func_env);
     for (int i = 0; i < funcs_len; i++) {
         Func *func = vec_at(func_env, i);
-        if (func->len == node->len &&
-                memcmp(func->name, node->name, func->len) == 0)
+        if (strlen(func->name) == strlen(node->name) && !strcmp(func->name, node->name))
             return func;
     }
     return NULL;

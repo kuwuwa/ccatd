@@ -16,6 +16,9 @@ struct Node;
 typedef struct Vector Vec;
 struct Vector;
 
+typedef struct StringBuilder StringBuilder;
+struct StringBuilder;
+
 typedef struct Func Func;
 struct Func;
 
@@ -36,13 +39,18 @@ void *vec_pop(Vec *vec);
 int vec_len(Vec *vec);
 void *vec_at(Vec *vec, int idx);
 
+StringBuilder *strbld_new();
+char *strbld_build(StringBuilder *sb);
+void strbld_append(StringBuilder *sb, char ch);
+void strbld_append_str(StringBuilder *sb, int len, char *ch);
+
 // util
 
 void error(char *fmt, ...);
 void error_loc(Location *loc, char *fmt, ...);
 void error_loc2(int line, int col, char *fmt, ...);
-void fnputs(FILE* fp, char *str, int n);
 void debug(char *fmt, ...);
+char *mkstr(char *ptr, int len);
 
 // tokenize
 
@@ -70,7 +78,6 @@ struct Token {
     Token *next;
     int val;
     char *str;
-    int len;
     Location *loc;
 };
 
@@ -120,14 +127,13 @@ struct Node {
     Vec *block;     // ND_BLOCK, ND_CALL
     int val;        // ND_NUM, ND_LVAR
     char *name;     // ND_CALL, ND_LVAR, ND_STRING
-    int len;        // ND_CALL, ND_STRING[
+    int len;        // ND_CALL, ND_STRING
     Type *type;
     Location *loc;
 };
 
 struct Func {
     char *name;
-    int len;
     Vec *params;
     Vec *block;
     int offset;

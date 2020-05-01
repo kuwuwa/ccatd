@@ -33,8 +33,7 @@ void skip_char(char **p, char ch) {
 Token *new_token(Token_kind kind, char *str, int len) {
     Token *tok = calloc(1, sizeof(Token));
     tok->kind = kind;
-    tok->str = str;
-    tok->len = len;
+    tok->str = mkstr(str, len);
 
     tok->loc = calloc(1, sizeof(Location));
     tok->loc->line = loc_line;
@@ -80,7 +79,7 @@ void tokenize(char *p) {
             int len = q - p;
 
             String *str = calloc(1, sizeof(String));
-            str->ptr = p;
+            str->ptr = mkstr(p, len);
             str->len = len;
             vec_push(environment->string_literals, str);
             vec_push(vec, new_token(TK_STRING, p, len));
@@ -176,13 +175,14 @@ Token *lookahead(Token_kind kind) {
 }
 
 bool lookahead_keyword(char *str) {
+    int len = strlen(str);
     Token *tk = lookahead_any();
-    return tk != NULL && tk->kind == TK_KWD && strlen(str) == tk->len && !memcmp(str, tk->str, tk->len);
+    return tk != NULL && tk->kind == TK_KWD && len == strlen(tk->str) && !strcmp(str, tk->str);
 }
 
 Token *consume_keyword(char *str) {
     Token *tk = lookahead(TK_KWD);
-    if (tk == NULL || tk->kind != TK_KWD || strlen(str) != tk->len || memcmp(str, tk->str, tk->len))
+    if (tk == NULL || tk->kind != TK_KWD || strlen(str) != strlen(tk->str) || strcmp(str, tk->str))
         return NULL;
     index++;
     return tk;
@@ -206,15 +206,14 @@ Token *expect(Token_kind kind) {
 
 void expect_keyword(char* str) {
     Token *tk = vec_at(tokens, index);
-    if (tk->kind != TK_KWD || strlen(str) != tk->len || memcmp(str, tk->str, tk->len))
+    if (tk->kind != TK_KWD || strlen(str) != strlen(tk->str) || strcmp(str, tk->str))
         error_loc(tk->loc, "\"%s\" expected", str);
     index++;
 }
 
 bool lookahead_type(char* str) {
-    int len = strlen(str);
     Token *tk = lookahead(TK_IDT);
-    return tk != NULL && tk->len == len && !memcmp(tk->str, str, len);
+    return tk != NULL && strlen(str) == strlen(tk->str) && !strcmp(str, tk->str);
 }
 
 bool lookahead_any_type() {
@@ -301,7 +300,7 @@ void toplevel() {
     } else {
         Node *node = new_node(ND_GVAR, tk->loc);
         node->name = tk->str;
-        node->len = tk->len;
+        node->len = strlen(tk->str);
 
         while (consume_keyword("[")) {
             Token *len = expect(TK_NUM);
@@ -325,7 +324,6 @@ Func *func(Type *ty, Token *name) {
 
     Func *func = calloc(1, sizeof(Func));
     func->name = name->str;
-    func->len = name->len;
     func->params = par;
     func->block = blk;
     func->loc = name->loc;
@@ -561,7 +559,7 @@ Node *term() {
 
             node = new_node(ND_CALL, tk->loc);
             node->name = tk->str;
-            node->len = tk->len;
+            node->len = strlen(tk->str);
             node->block = vec;
         } else { // variable
             node = find_var(tk);
@@ -574,7 +572,7 @@ Node *term() {
     } else if ((tk = consume(TK_STRING))) {
         node = new_node(ND_STRING, tk->loc);
         node->name = tk->str;
-        node->len = tk->len;
+        node->len = strlen(tk->str);
         node->type = type_ptr_char;
     }
 
@@ -618,14 +616,14 @@ Node *find_var(Token *token) {
     int locals_len = locals == NULL ? 0 : vec_len(locals);
     for (int i = 0; i < locals_len; i++) {
         Node *var = vec_at(locals, i);
-        if (token->len == var->len && memcmp(token->str, var->name, token->len) == 0)
+        if (strlen(token->str) == var->len && !strcmp(token->str, var->name))
             return var;
     }
 
     int globals_len = vec_len(environment->globals);
     for (int i = 0; i < globals_len; i++) {
         Node *var = vec_at(environment->globals, i);
-        if (token->len == var->len && memcmp(token->str, var->name, token->len) == 0)
+        if (strlen(token->str) == var->len && !strcmp(token->str, var->name))
             return var;
     }
 
@@ -636,7 +634,7 @@ Node *push_lvar(Type *ty, Token *tk) {
     Node *var = new_node(ND_LVAR, NULL);
     var->name = tk->str;
     var->type = ty;
-    var->len = tk->len;
+    var->len = strlen(tk->str);
 
     vec_push(locals, var);
     return var;
