@@ -42,6 +42,16 @@ Token *new_token(Token_kind kind, char *str, int len) {
     return tok;
 }
 
+int mem_str(char *p, char *ids[], int idslen) {
+    int plen = strlen(p);
+    for (int i = 0; i < idslen; i++) {
+        int ilen = strlen(ids[i]);
+        if (plen >= ilen && !strncmp(p, ids[i], ilen))
+            return i;
+    }
+    return -1;
+}
+
 void tokenize(char *p) {
     loc_line = 1;
     loc_column = 1;
@@ -85,18 +95,18 @@ void tokenize(char *p) {
             continue;
         }
 
-        if ((*p == '=' || *p == '!' || *p == '<' || *p == '>') && p+1 && *(p+1) == '=') {
-            vec_push(vec, new_token(TK_KWD, p, 2));
-            skip_column(&p, 2);
-            continue;
-        }
-
-        if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' ||
-                *p == '<' || *p == '>' || *p == '=' || *p == ';' ||
-                *p == '{' || *p == '}' || *p == ',' || *p == '&' ||
-                *p == '[' || *p == ']') {
-            vec_push(vec, new_token(TK_KWD, p, 1));
-            skip_column(&p, 1);
+        char *tkids[] = {
+            "&&", "||",
+            "==", "!=", "<=", ">=",
+            "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
+            "{", "}", ",", "&", "[", "]",
+        };
+        int idx = mem_str(p, tkids, sizeof(tkids) / sizeof(char*));
+        if (idx >= 0) {
+            int tlen = strlen(tkids[idx]);
+            Token *token = new_token(TK_KWD, p, tlen);
+            vec_push(vec, token);
+            skip_column(&p, tlen);
             continue;
         }
 
@@ -267,8 +277,10 @@ Node *rhs_expr();
 Node *array(Location *start);
 
 Node *expr();
-Node *equal();
-Node *comp();
+Node *logical_or();
+Node *logical_and();
+Node *equality();
+Node *relational();
 Node *add();
 Node *mul();
 Node *unary();
@@ -302,7 +314,6 @@ void toplevel() {
         while (consume_keyword("[")) {
             Token *len = expect(TK_NUM);
             expect_keyword("]");
-
             ty = array_of(ty, len->val);
         }
 
@@ -462,27 +473,49 @@ Node *array(Location *start) {
 }
 
 Node *expr() {
-    Node *node = equal();
+    Node *node = logical_or();
     Token *tk;
     if ((tk = consume_keyword("=")))
         node = new_op(ND_ASGN, node, expr(), tk->loc);
     return node;
 }
 
-Node *equal() {
-    Node *node = comp();
+Node *logical_or() {
+    Node *node = logical_and();
     for (;;) {
         Token *tk;
-        if ((tk = consume_keyword("==")))
-            node = new_op(ND_EQ, node, comp(), tk->loc);
-        else if ((tk = consume_keyword("!=")))
-            node = new_op(ND_NEQ, node, comp(), tk->loc);
+        if ((tk = consume_keyword("||")))
+            node = new_op(ND_LOR, node, logical_and(), tk->loc);
         else break;
     }
     return node;
 }
 
-Node *comp() {
+Node *logical_and() {
+    Node *node = equality();
+    for (;;) {
+        Token *tk;
+        if ((tk = consume_keyword("&&")))
+            node = new_op(ND_LAND, node, equality(), tk->loc);
+        else break;
+    }
+    return node;
+}
+
+Node *equality() {
+    Node *node = relational();
+    for (;;) {
+        Token *tk;
+        if ((tk = consume_keyword("==")))
+            node = new_op(ND_EQ, node, relational(), tk->loc);
+        else if ((tk = consume_keyword("!=")))
+            node = new_op(ND_NEQ, node, relational(), tk->loc);
+        else break;
+    }
+    return node;
+}
+
+Node *relational() {
     Node *node = add();
     for (;;) {
         Token *tk;

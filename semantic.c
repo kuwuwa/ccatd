@@ -381,6 +381,16 @@ void sema_expr(Node* node) {
         node->type = type_int;
         return;
     }
+    // ND_LAND
+    if (node->kind == ND_LAND) {
+        node->type = type_int;
+        return;
+    }
+    // ND_LAND
+    if (node->kind == ND_LOR) {
+        node->type = type_int;
+        return;
+    }
     error_loc(node->loc, "unsupported feature");
 }
 

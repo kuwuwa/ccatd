@@ -389,6 +389,43 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_LAND) {
+        printf("# logical AND operation\n");
+        gen(node->lhs);
+        printf("  cmp rax, 0\n"
+               "  je .Land_end%d\n", label_num);
+        printf("  pop rax\n");
+        gen(node->rhs);
+        printf("  cmp rax, 0\n"
+               "  je .Land_end%d\n", label_num);
+        printf("  pop rax\n"
+               "  push 1\n");
+        printf(".Land_end%d:\n", label_num);
+
+        stack_depth += 8;
+        label_num++;
+        return;
+    }
+    
+    if (node->kind == ND_LOR) {
+        printf("# logical OR operation\n");
+        gen(node->lhs);
+        printf("  cmp rax, 0\n"
+               "  jne .Lor_true%d\n", label_num);
+        printf("  pop rax\n");
+        gen(node->rhs);
+        printf("  cmp rax, 0\n"
+               "  je .Lor_end%d\n", label_num);
+        printf(".Lor_true%d:\n", label_num);
+        printf("  pop rax\n"
+               "  push 1\n");
+        printf(".Lor_end%d:\n", label_num);
+
+        stack_depth += 8;
+        label_num++;
+        return;
+    }
+
     printf("# prepare arithmetic operation\n");
     gen(node->lhs);
     printf("# right hand side\n");

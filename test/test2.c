@@ -24,5 +24,10 @@ int main() {
     assert_equals(poyo[2], 3);
 
     assert_equals(z[3], 5);
+
+    assert_equals(0 && 1234, 0);
+    assert_equals(1 && 2, 1);
+    assert_equals(800 || 0, 1);
+    assert_equals(0 || 0, 0);
     return 0;
 }

@@ -92,6 +92,8 @@ typedef enum {
     ND_NUM,
     ND_LVAR,
     ND_ASGN,
+    ND_LOR,
+    ND_LAND,
     ND_ADD,
     ND_SUB,
     ND_MUL,
