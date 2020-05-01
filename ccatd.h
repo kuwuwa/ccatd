@@ -141,11 +141,6 @@ struct Func {
     Location *loc;
 };
 
-struct String {
-    char *ptr;
-    int len;
-};
-
 struct Environment {
     Vec *functions;
     Vec *globals;

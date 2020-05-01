@@ -78,10 +78,7 @@ void tokenize(char *p) {
                 error_loc2(loc_line, loc_column, "Closing quote \"\"\" expected");
             int len = q - p;
 
-            String *str = calloc(1, sizeof(String));
-            str->ptr = mkstr(p, len);
-            str->len = len;
-            vec_push(environment->string_literals, str);
+            vec_push(environment->string_literals, mkstr(p, len));
             vec_push(vec, new_token(TK_STRING, p, len));
 
             skip_column(&p, (q - p) + 1); // next to '"'
