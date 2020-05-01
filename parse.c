@@ -100,6 +100,7 @@ void tokenize(char *p) {
             "==", "!=", "<=", ">=",
             "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
             "{", "}", ",", "&", "[", "]",
+            "!",
         };
         int idx = mem_str(p, tkids, sizeof(tkids) / sizeof(char*));
         if (idx >= 0) {
@@ -570,6 +571,8 @@ Node *unary() {
         return new_op(ND_ADDR, unary(), NULL, tk->loc);
     if ((tk = consume_keyword("*")))
         return new_op(ND_DEREF, unary(), NULL, tk->loc);
+    if ((tk = consume_keyword("!")))
+        return new_op(ND_NEG, unary(), NULL, tk->loc);
     return term();
 }
 

@@ -29,5 +29,9 @@ int main() {
     assert_equals(1 && 2, 1);
     assert_equals(800 || 0, 1);
     assert_equals(0 || 0, 0);
+
+    assert_equals(!12345, 0);
+    assert_equals(!0, 1);
+    assert_equals(!-389, 0);
     return 0;
 }

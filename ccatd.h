@@ -106,6 +106,7 @@ typedef enum {
     ND_ADDR,
     ND_DEREF,
     ND_SIZEOF,
+    ND_NEG,
     ND_INDEX,
     ND_GVAR,
     ND_STRING,

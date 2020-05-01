@@ -297,6 +297,11 @@ void sema_expr(Node* node) {
         node->val = type_size(node->lhs->type);
         return;
     }
+    if (node->kind == ND_NEG) {
+        sema_expr(node->lhs);
+        node->type = type_int;
+        return;
+    }
     // ND_CALL,
     if (node->kind == ND_CALL) {
         Func *f = find_func(node);

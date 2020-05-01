@@ -268,6 +268,16 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_NEG) {
+        gen(node->lhs);
+        printf("  pop rax\n"
+               "  cmp rax, 0\n"
+               "  sete al\n"
+               "  movzb eax, al\n"
+               "  push rax\n");
+        return;
+    }
+
     if (node->kind == ND_VARDECL) {
         if (node->rhs == NULL)
             return;
