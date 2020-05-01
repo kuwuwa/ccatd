@@ -399,6 +399,23 @@ void gen(Node *node) {
         return;
     }
 
+
+    if (node->kind == ND_COND) {
+        gen(node->cond); // +8
+        printf("  pop rax\n"
+               "  cmp rax, 0\n"
+               "  je .Lcond_else%d\n", label_num);
+        gen(node->lhs); // +8
+        printf("  jmp .Lcond_end%d\n"
+               ".Lcond_else%d:\n", label_num, label_num);
+        gen(node->rhs); // +8
+        printf(".Lcond_end%d:\n", label_num);
+
+        stack_depth -= 16;
+        label_num++;
+        return;
+    }
+
     if (node->kind == ND_LAND) {
         printf("# logical AND operation\n");
         gen(node->lhs);
@@ -416,7 +433,7 @@ void gen(Node *node) {
         label_num++;
         return;
     }
-    
+
     if (node->kind == ND_LOR) {
         printf("# logical OR operation\n");
         gen(node->lhs);

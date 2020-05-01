@@ -317,6 +317,15 @@ void sema_expr(Node* node) {
         node->type = f->ret_type;
         return;
     }
+    if (node->kind == ND_COND) {
+        sema_expr(node->cond);
+        sema_expr(node->lhs);
+        sema_expr(node->rhs);
+
+        if (!eq_type(node->lhs->type, node->rhs->type))
+            error_loc(node->loc, "type mismatch in a conditional expression");
+        return;
+    }
     if (node->kind == ND_GVAR)
         return;
 

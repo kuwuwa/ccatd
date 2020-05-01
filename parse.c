@@ -100,7 +100,7 @@ void tokenize(char *p) {
             "==", "!=", "<=", ">=",
             "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
             "{", "}", ",", "&", "[", "]",
-            "!",
+            "!", "?", ":"
         };
         int idx = mem_str(p, tkids, sizeof(tkids) / sizeof(char*));
         if (idx >= 0) {
@@ -278,6 +278,7 @@ Node *rhs_expr();
 Node *array(Location *start);
 
 Node *expr();
+Node *conditional();
 Node *logical_or();
 Node *logical_and();
 Node *equality();
@@ -474,11 +475,24 @@ Node *array(Location *start) {
 }
 
 Node *expr() {
-    Node *node = logical_or();
+    Node *node = conditional();
     Token *tk;
     if ((tk = consume_keyword("=")))
         node = new_op(ND_ASGN, node, expr(), tk->loc);
     return node;
+}
+
+Node *conditional() {
+    Node *cond = logical_or();
+    if (!consume_keyword("?"))
+        return cond;
+    Node *true_expr = expr();
+    expect_keyword(":");
+    Node *false_expr = conditional();
+
+    Node *ret = new_op(ND_COND, true_expr, false_expr, cond->loc);
+    ret->cond = cond;
+    return ret;
 }
 
 Node *logical_or() {

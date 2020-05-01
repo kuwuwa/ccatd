@@ -33,5 +33,8 @@ int main() {
     assert_equals(!12345, 0);
     assert_equals(!0, 1);
     assert_equals(!-389, 0);
+
+    assert_equals((1 < func() ? 10 : 20), 10);
+    assert_equals((3 < 2 ? 10 : 20), 20);
     return 0;
 }
