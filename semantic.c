@@ -4,7 +4,9 @@
 
 
 void sema_globals();
-void sema_const(Type*, Node*);
+void sema_const(Node*);
+void sema_const_aux(Node*);
+void sema_const_array(Type*, Node*);
 void sema_func(Func*);
 void sema_block(Vec*, Func*);
 void sema_stmt(Node*, Func*, int scope_start);
@@ -46,46 +48,99 @@ void sema_globals() {
             error_loc(g->loc, "[semantic] a global variable expected");
 
         if (g->rhs != NULL) {
-            sema_const(g->type, g->rhs);
+            sema_const(g);
             if (!assignable(g->type, g->rhs->type)) {
-                error_loc(g->loc, "[semantic] type mismatch in a global variable declaration");
+                error_loc(g->loc, "[semantic] type mismatch in a global variable initialization");
             }
         }
     }
 }
 
-void sema_const(Type *ty, Node *node) {
+void sema_const(Node *global) {
+    if (global->rhs->kind == ND_ARRAY) {
+        sema_const_array(global->type, global->rhs);
+        return;
+    }
+    sema_const_aux(global->rhs);
+}
+
+void sema_const_aux(Node *node) {
     if (node->kind == ND_NUM) {
-        if (!eq_type(ty, node->type))
+        if (!eq_type(type_int, node->type))
             error("[semantic] type mismatch in a global variable declaration");
         return;
     }
     if (node->kind == ND_STRING) {
-        if (!eq_type(ty, node->type))
-            error("[semantic] type mismatch in a global variable declaration");
+        if (!eq_type(type_ptr_char, node->type))
+            error("[semantic] type mismatch in a global variable initialization");
         return;
     }
-    if (node->kind == ND_ARRAY) {
-        int array_len = node->len;
-        for (int i = 0; i < array_len; i++) {
-            Node *e = vec_at(node->block, i);
-            sema_const(ty->ptr_to, e);
-        }
-        node->type = array_of(ty->ptr_to, array_len);
-        return;
-    }
+
     if (node->kind == ND_ADDR) {
         Node *e = node->lhs;
         if (e->kind != ND_GVAR)
-            error_loc(e->loc, "a left value expected");
+            error_loc(e->loc, "[semantic] a left value expected");
 
         node->type = ptr_of(e->type);
         return;
     }
 
-    error_loc(node->loc, "[semantic] unsupported expression in a global variable expression");
+    if (node->kind == ND_GVAR) {
+        if (!is_pointer_compat(node->type))
+            error_loc(node->loc, "[semantic] unsupported type of variable in a global variable initialization");
+        return;
+    }
+
+    if (node->kind == ND_ADD) {
+        sema_const_aux(node->lhs);
+        sema_const_aux(node->rhs);
+        Node *lhs = node->lhs;
+        Node *rhs = node->rhs;
+
+        if (is_integer(lhs->type) && is_integer(rhs->type))
+            node->type = (lhs->type->ty == TY_CHAR && rhs->type->ty == TY_CHAR)
+                ? type_char : type_int;
+        else if ((is_pointer_compat(lhs->type) && is_integer(rhs->type)) ||
+                (is_integer(lhs->type) && is_pointer_compat(rhs->type)))
+            node->type = is_pointer_compat(lhs->type) ? lhs->type : rhs->type;
+        else
+            error_loc(node->loc, "[semantic] unsupported addition in a global variable initialization");
+        return;
+    }
+
+    if (node->kind == ND_SUB) {
+        sema_const_aux(node->lhs);
+        sema_const_aux(node->rhs);
+        Node *lhs = node->lhs;
+        Node *rhs = node->rhs;
+
+        if (is_integer(lhs->type) && is_integer(rhs->type))
+            node->type = (lhs->type->ty == TY_CHAR && rhs->type->ty == TY_CHAR)
+                ? type_char : type_int;
+        else if (is_pointer_compat(lhs->type) && is_integer(rhs->type))
+            node->type = lhs->type;
+        else
+            error_loc(node->loc, "[semantic] unsupported addition in a global variable initialization");
+        return;
+    }
+
+    error_loc(node->loc, "[semantic] unsupported expression in a global variable initialization");
 }
 
+void sema_const_array(Type *type, Node *node) {
+    int array_len = node->len;
+    for (int i = 0; i < array_len; i++) {
+        Node *e = vec_at(node->block, i);
+        if (e->kind == ND_ARRAY)
+            sema_const_array(type->ptr_to, e);
+        else {
+            sema_const_aux(e);
+            if (!assignable(type, e->type))
+                error_loc(e->loc, "[semantic] type mismatch in a global array initialization");
+        }
+    }
+    node->type = array_of(type->ptr_to, array_len);
+}
 
 void sema_func(Func *func) {
     int params_len = vec_len(func->params);

@@ -152,6 +152,8 @@ Vec *locals;
 
 void parse();
 
+Node *new_node_num(int v, Location *loc);
+
 // type
 
 struct Type {
@@ -171,6 +173,8 @@ Type *array_of(Type *type, int len);
 int type_size(Type *type);
 
 bool is_int(Type *type);
+
+bool is_integer(Type *type);
 
 bool is_pointer_compat(Type *type);
 

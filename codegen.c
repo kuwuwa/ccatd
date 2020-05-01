@@ -7,7 +7,8 @@
 char *arg_regs64[6] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
 
 void gen_globals();
-void gen_const(Node *node);
+void gen_const(Node*);
+Node *gen_const_calc(Node*);
 void gen(Node*);
 void gen_stmt(Node*);
 void gen_func(Func*);
@@ -36,8 +37,10 @@ void gen_globals() {
         printf(":\n");
         if (global->rhs == NULL)
             printf("  .zero %d\n", type_size(global->type));
-        else
-            gen_const(global->rhs);
+        else {
+            Node *rhs = gen_const_calc(global->rhs);
+            gen_const(rhs);
+        }
     }
     printf("  .text\n");
     for (int i = 0; i < vec_len(environment->string_literals); i++) {
@@ -60,6 +63,12 @@ void gen_const(Node *node) {
         printf("\n");
         return;
     }
+    if (node->kind == ND_GVAR) {
+        printf("  .quad ");
+        fnputs(stdout, node->name, node->len);
+        printf("\n");
+        return;
+    }
     if (node->kind == ND_STRING) {
         int len = vec_len(environment->string_literals);
         for (int i = 0; i < len; i++) {
@@ -76,8 +85,89 @@ void gen_const(Node *node) {
             gen_const(vec_at(node->block, i));
         return;
     }
+    if (node->kind == ND_ADD) {
+        Node *var = node->kind == ND_ADDR ? node->lhs->lhs : node->lhs;
+        Node *offset = node->rhs;
+
+        printf("  .quad ");
+        fnputs(stdout, var->name, var->len);
+        printf(" + %d\n", offset->val * type_size(offset->type));
+        return;
+    }
+    if (node->kind == ND_SUB) {
+        Node *var = node->lhs->lhs;
+        Node *offset = node->rhs;
+
+        printf("  .quad ");
+        fnputs(stdout, var->name, var->len);
+        printf(" - %d\n", offset->val * type_size(offset->type));
+        return;
+    }
 
     error_loc(node->loc, "[codegen] unsupported expression in a global variable declaration");
+}
+
+Node *gen_const_calc(Node *node) {
+    if (node->kind == ND_NUM)
+        return node;
+    if (node->kind == ND_ADDR)
+        return node;
+    if (node->kind == ND_GVAR)
+        return node;
+    if (node->kind == ND_STRING)
+        return node;
+    if (node->kind == ND_ARRAY)
+        return node;
+
+    if (node->kind == ND_ADD) {
+        gen_const_calc(node->lhs);
+        gen_const_calc(node->rhs);
+        if (is_integer(node->lhs->type) && is_integer(node->rhs->type)) {
+            node->type = ND_NUM;
+            node->val = node->lhs->val + node->rhs->val;
+        } else {
+            if (is_pointer_compat(node->rhs->type)) {
+                Node *tmp = node->rhs;
+                node->rhs = node->lhs;
+                node->lhs = tmp;
+            }
+
+            if (node->lhs->kind == ND_ADD) {
+                Node *new_rhs = new_node_num(node->lhs->rhs->val + node->rhs->val, node->loc);
+                node->lhs = node->lhs->lhs;
+                node->rhs = new_rhs;
+            } else if (node->lhs->kind == ND_SUB) {
+                Node *new_rhs = new_node_num(-node->lhs->rhs->val + node->rhs->val, node->loc);
+                node->lhs = node->lhs->lhs;
+                node->rhs = new_rhs;
+            }
+        }
+        return node;
+    }
+    if (node->kind == ND_SUB) {
+        gen_const_calc(node->lhs);
+        gen_const_calc(node->rhs);
+        if (is_integer(node->lhs->type) && is_integer(node->rhs->type)) {
+            node->type = ND_NUM;
+            node->val = node->lhs->val - node->rhs->val;
+        } else {
+            // is_pointer(node->lhs->type) && !is_pointer(node->rhs->type)
+
+            if (node->lhs->kind == ND_ADD) {
+                Node *new_rhs = new_node_num(node->lhs->rhs->val - node->rhs->val, node->loc);
+                node->lhs = node->lhs->lhs;
+                node->rhs = new_rhs;
+            } else if (node->lhs->kind == ND_SUB) {
+                Node *new_rhs = new_node_num(-node->lhs->rhs->val - node->rhs->val, node->loc);
+                node->lhs = node->lhs->lhs;
+                node->rhs = new_rhs;
+            }
+        }
+        return node;
+    }
+
+    error_loc(node->loc, "[codegen] unsupported expression in a global variable declaration");
+    return NULL;
 }
 
 // generate function
