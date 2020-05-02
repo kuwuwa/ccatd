@@ -380,6 +380,13 @@ void sema_expr(Node* node) {
         }
         return;
     }
+    // ND_MOD
+    if (node->kind == ND_MOD) {
+        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
+            return;
+        else
+            error_loc(node->loc, "[semantic] unsupported modulo");
+    }
     // ND_EQ,
     if (node->kind == ND_EQ) {
         node->type = type_int;

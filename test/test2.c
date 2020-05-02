@@ -47,5 +47,8 @@ int main() {
 
     assert_equals(1 << 2 << 8, 1024);
     assert_equals(3072 >> 6 >> 4, 3);
+
+    assert_equals(10 % 3, 1);
+    assert_equals((-10) % 3, -1);
     return 0;
 }

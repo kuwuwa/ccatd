@@ -109,6 +109,7 @@ typedef enum {
     ND_SUB,
     ND_MUL,
     ND_DIV,
+    ND_MOD,
     ND_CALL,
     ND_ADDR,
     ND_DEREF,

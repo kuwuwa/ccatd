@@ -511,7 +511,13 @@ void gen(Node *node) {
             printf("  imul rax, rdi\n");
             break;
         case ND_DIV:
-            printf("  cqo\nidiv rdi\n");
+            printf("  cqo\n"
+                   "  idiv rdi\n");
+            break;
+        case ND_MOD:
+            printf("  cqo\n"
+                   "  idiv rdi\n"
+                   "  mov rax, rdx\n");
             break;
         case ND_IOR:
             printf("  or rax, rdi\n");

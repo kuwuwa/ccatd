@@ -99,7 +99,7 @@ void tokenize(char *p) {
             "&&", "||", "==", "!=", "<=", ">=", "<<", ">>",
             "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
             "{", "}", ",", "&", "[", "]",
-            "!", "?", ":", ",", "|", "^"
+            "!", "?", ":", ",", "|", "^", "%"
         };
         int idx = mem_str(p, tkids, sizeof(tkids) / sizeof(char*));
         if (idx >= 0) {
@@ -604,6 +604,8 @@ Node *mul() {
             node = new_op(ND_MUL, node, unary(), tk->loc);
         else if ((tk = consume_keyword("/")))
             node = new_op(ND_DIV, node, unary(), tk->loc);
+        else if ((tk = consume_keyword("%")))
+            node = new_op(ND_MOD, node, unary(), tk->loc);
         else break;
     }
     return node;
