@@ -172,8 +172,10 @@ void sema_func(Func *func) {
 void sema_block(Vec *block, Func *func) {
     int scope_start = vec_len(local_vars);
     int block_len = vec_len(block);
-    for (int i = 0; i < block_len; i++)
-        sema_stmt(vec_at(block, i), func, scope_start);
+    for (int i = 0; i < block_len; i++) {
+        Node *n = vec_at(block, i);
+        sema_stmt(n, func, scope_start);
+    }
 
     while (vec_len(local_vars) > scope_start) {
         Node *var = vec_pop(local_vars);
@@ -185,7 +187,7 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
     if (node->kind == ND_VARDECL) {
         int idx = index_of_lvar(node->lhs);
         if (scope_start <= idx && idx < vec_len(local_vars))
-            error_loc(node->loc, "duplicate variable declaration");
+            error_loc(node->loc, "[semantic] duplicate variable declaration");
 
         if (node->rhs != NULL) {
             if (node->lhs->type->ty == TY_ARRAY) {
@@ -230,10 +232,14 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
         return;
     }
     if (node->kind == ND_FOR) {
-        sema_expr(node->cond);
-        sema_expr(node->lhs);
-        sema_expr(node->rhs);
-        sema_stmt(node->body, func, scope_start);
+        Vec *for_block = vec_new();
+        if (node->lhs != NULL)
+            vec_push(for_block, node->lhs);
+        vec_push(for_block, node->cond);
+        if (node->rhs != NULL)
+            vec_push(for_block, node->rhs);
+        vec_push(for_block, node->body);
+        sema_block(for_block, func);
         return;
     }
     if (node->kind == ND_BLOCK) {

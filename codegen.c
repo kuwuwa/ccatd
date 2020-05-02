@@ -380,6 +380,7 @@ void gen(Node *node) {
         printf("  pop rax\n"
                "  cmp rax, 0\n");
         printf("  je .Lend_for%d\n", label_num);
+        stack_depth -= 8;
         gen_stmt(node->body);
         gen_stmt(node->rhs);
         printf("  jmp .Lfor%d\n", label_num);

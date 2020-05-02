@@ -227,7 +227,7 @@ bool lookahead_any_type() {
     return lookahead_type("int") || lookahead_type("char");
 }
 
-Type *consume_type() {
+Type *consume_type_identifier() {
     if (lookahead_type("int")) {
         index++;
         return type_int;
@@ -238,6 +238,16 @@ Type *consume_type() {
     return NULL;
 }
 
+Type *consume_type_pre() {
+    Type *typ = consume_type_identifier();
+    if (typ == NULL)
+        return NULL;
+
+    while (consume_keyword("*"))
+        typ = ptr_of(typ);
+
+    return typ;
+}
 
 // parse
 
@@ -347,12 +357,9 @@ Func *func(Type *ty, Token *name) {
 }
 
 Type *type() {
-    Type *typ = consume_type();
+    Type *typ = consume_type_pre();
     if (typ == NULL)
         error_loc(lookahead_any()->loc, "unknown type");
-
-    while (consume_keyword("*"))
-        typ = ptr_of(typ);
     return typ;
 }
 
@@ -412,7 +419,17 @@ Node *stmt() {
         node = new_node(ND_FOR, tk->loc);
         expect_keyword("(");
         if (!consume_keyword(";")) {
-            node->lhs = expr();
+            if (!lookahead_any_type())
+                node->lhs = expr();
+            else {
+                Type *typ = type();
+                Token *id = expect(TK_IDT);
+                type_array(&typ);
+                Node *e = consume_keyword("=") ? rhs_expr() : NULL;
+
+                Node *var = push_lvar(typ, id);
+                node->lhs = new_op(ND_VARDECL, var, e, id->loc);
+            }
             expect_keyword(";");
         }
         if (!consume_keyword(";")) {
@@ -435,10 +452,7 @@ Node *stmt() {
         Node *rhs = consume_keyword("=") ? rhs_expr() : NULL;
         expect_keyword(";");
 
-        Node *lhs = find_var(id);
-        if (lhs == NULL)
-            lhs = push_lvar(typ, id);
-
+        Node *lhs = push_lvar(typ, id);
         node = new_op(ND_VARDECL, lhs, rhs, id->loc);
     } else {
         node = expr();
