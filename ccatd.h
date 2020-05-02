@@ -91,6 +91,7 @@ typedef enum {
     // expressions
     ND_NUM,
     ND_LVAR,
+    ND_SEQ,
     ND_ASGN,
     ND_COND,
     ND_LOR,

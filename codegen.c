@@ -209,6 +209,14 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_SEQ) {
+        gen(node->lhs);
+        printf("  pop rax\n");
+        stack_depth -= 8;
+        gen(node->rhs);
+        return;
+    }
+
     if (node->kind == ND_ASGN) {
         gen_lval(node->lhs);
         gen(node->rhs);
@@ -408,13 +416,14 @@ void gen(Node *node) {
         printf("  pop rax\n"
                "  cmp rax, 0\n"
                "  je .Lcond_else%d\n", label_num);
+        stack_depth -= 8;
         gen(node->lhs); // +8
         printf("  jmp .Lcond_end%d\n"
                ".Lcond_else%d:\n", label_num, label_num);
         gen(node->rhs); // +8
         printf(".Lcond_end%d:\n", label_num);
 
-        stack_depth -= 16;
+        stack_depth -= 8;
         label_num++;
         return;
     }

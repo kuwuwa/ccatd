@@ -267,6 +267,13 @@ void sema_expr(Node* node) {
         node->type = resolved->type;
         return;
     }
+    // ND_SEQ
+    if (node->kind == ND_SEQ) {
+        sema_expr(node->lhs);
+        sema_expr(node->rhs);
+        node->type = node->rhs->type;
+        return;
+    }
     // ND_ASGN,
     if (node->kind == ND_ASGN) {
         sema_lval(node->lhs);

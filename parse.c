@@ -52,6 +52,14 @@ int mem_str(char *p, char *ids[], int idslen) {
     return -1;
 }
 
+char *tkids[] = {
+    "&&", "||",
+    "==", "!=", "<=", ">=",
+    "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
+    "{", "}", ",", "&", "[", "]",
+    "!", "?", ":", ","
+};
+
 void tokenize(char *p) {
     loc_line = 1;
     loc_column = 1;
@@ -95,13 +103,6 @@ void tokenize(char *p) {
             continue;
         }
 
-        char *tkids[] = {
-            "&&", "||",
-            "==", "!=", "<=", ">=",
-            "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
-            "{", "}", ",", "&", "[", "]",
-            "!", "?", ":"
-        };
         int idx = mem_str(p, tkids, sizeof(tkids) / sizeof(char*));
         if (idx >= 0) {
             int tlen = strlen(tkids[idx]);
@@ -278,6 +279,7 @@ Node *rhs_expr();
 Node *array(Location *start);
 
 Node *expr();
+Node *assignment();
 Node *conditional();
 Node *logical_or();
 Node *logical_and();
@@ -465,16 +467,23 @@ Node *array(Location *start) {
     if (consume_keyword("}"))
         return ret;
 
-    vec_push(ret->block, expr());
+    vec_push(ret->block, assignment());
 
     while (!consume_keyword("}")) {
         expect_keyword(",");
-        vec_push(ret->block, expr());
+        vec_push(ret->block, assignment());
     }
     return ret;
 }
 
 Node *expr() {
+    Node *node = assignment();
+    for (Token *tk; (tk = consume_keyword(","));)
+        node = new_op(ND_SEQ, node, assignment(), tk->loc);
+    return node;
+}
+
+Node *assignment() {
     Node *node = conditional();
     Token *tk;
     if ((tk = consume_keyword("=")))
@@ -497,12 +506,8 @@ Node *conditional() {
 
 Node *logical_or() {
     Node *node = logical_and();
-    for (;;) {
-        Token *tk;
-        if ((tk = consume_keyword("||")))
-            node = new_op(ND_LOR, node, logical_and(), tk->loc);
-        else break;
-    }
+    for (Token *tk; (tk = consume_keyword("||"));)
+        node = new_op(ND_LOR, node, logical_and(), tk->loc);
     return node;
 }
 
@@ -648,10 +653,10 @@ Vec *args() {
     Vec *vec = vec_new();
     if (consume_keyword(")"))
         return vec;
-    vec_push(vec, expr());
+    vec_push(vec, assignment());
     while (!consume_keyword(")")) {
         expect_keyword(",");
-        vec_push(vec, expr());
+        vec_push(vec, assignment());
     }
     return vec;
 }

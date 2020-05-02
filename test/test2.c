@@ -36,5 +36,9 @@ int main() {
 
     assert_equals((1 < func() ? 10 : 20), 10);
     assert_equals((3 < 2 ? 10 : 20), 20);
+
+    int v = 10;
+    assert_equals((1, (v = 20), 3, 4), 4);
+    assert_equals(v, 20);
     return 0;
 }

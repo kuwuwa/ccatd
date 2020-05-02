@@ -43,10 +43,11 @@ try_stdout() {
   fi
 }
 
-# try_stdout 'sample/call2.c' 'OK'
-# try_stdout 'sample/char2.c' 'Hello, World!'
-# try_stdout 'sample/string2.c' 'hack'
+try_stdout 'sample/call2.c' 'OK'
+try_stdout 'sample/char2.c' 'Hello, World!'
+try_stdout 'sample/string2.c' 'hack'
 
+try_return 'sample/assignment2.c' 4
 try_return 'test/test1.c' 0
 try_return 'test/test2.c' 0
 
