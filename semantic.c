@@ -97,8 +97,7 @@ void sema_const_aux(Node *node) {
         Node *rhs = node->rhs;
 
         if (is_integer(lhs->type) && is_integer(rhs->type))
-            node->type = (lhs->type->ty == TY_CHAR && rhs->type->ty == TY_CHAR)
-                ? type_char : type_int;
+            node->type = binary_int_op_result(lhs->type, rhs->type);
         else if ((is_pointer_compat(lhs->type) && is_integer(rhs->type)) ||
                 (is_integer(lhs->type) && is_pointer_compat(rhs->type)))
             node->type = is_pointer_compat(lhs->type) ? lhs->type : rhs->type;
@@ -114,8 +113,7 @@ void sema_const_aux(Node *node) {
         Node *rhs = node->rhs;
 
         if (is_integer(lhs->type) && is_integer(rhs->type))
-            node->type = (lhs->type->ty == TY_CHAR && rhs->type->ty == TY_CHAR)
-                ? type_char : type_int;
+            node->type = binary_int_op_result(lhs->type, rhs->type);
         else if (is_pointer_compat(lhs->type) && is_integer(rhs->type))
             node->type = lhs->type;
         else
@@ -240,7 +238,7 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
     }
     if (node->kind == ND_BLOCK) {
         sema_block(node->block, func);
-        return; 
+        return;
     }
 
     sema_expr(node);
@@ -411,6 +409,27 @@ void sema_expr(Node* node) {
     if (node->kind == ND_LOR) {
         node->type = type_int;
         return;
+    }
+    // ND_IOR
+    if (node->kind == ND_IOR) {
+        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
+            return;
+        else
+            error_loc(node->loc, "[semantic] type mismatch in an inclusive OR expression");
+    }
+    // ND_XOR
+    if (node->kind == ND_XOR) {
+        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
+            return;
+        else
+            error_loc(node->loc, "[semantic] type mismatch in an exclusive OR expression");
+    }
+    // ND_AND
+    if (node->kind == ND_AND) {
+        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
+            return;
+        else
+            error_loc(node->loc, "[semantic] type mismatch in an AND expression");
     }
     error_loc(node->loc, "unsupported feature");
 }

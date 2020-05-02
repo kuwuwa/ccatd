@@ -52,14 +52,6 @@ int mem_str(char *p, char *ids[], int idslen) {
     return -1;
 }
 
-char *tkids[] = {
-    "&&", "||",
-    "==", "!=", "<=", ">=",
-    "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
-    "{", "}", ",", "&", "[", "]",
-    "!", "?", ":", ","
-};
-
 void tokenize(char *p) {
     loc_line = 1;
     loc_column = 1;
@@ -103,6 +95,13 @@ void tokenize(char *p) {
             continue;
         }
 
+        static char *tkids[] = {
+            "&&", "||",
+            "==", "!=", "<=", ">=",
+            "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
+            "{", "}", ",", "&", "[", "]",
+            "!", "?", ":", ",", "|", "^"
+        };
         int idx = mem_str(p, tkids, sizeof(tkids) / sizeof(char*));
         if (idx >= 0) {
             int tlen = strlen(tkids[idx]);
@@ -283,6 +282,9 @@ Node *assignment();
 Node *conditional();
 Node *logical_or();
 Node *logical_and();
+Node *inclusive_or();
+Node *exclusive_or();
+Node *and();
 Node *equality();
 Node *relational();
 Node *add();
@@ -512,13 +514,30 @@ Node *logical_or() {
 }
 
 Node *logical_and() {
+    Node *node = inclusive_or();
+    for (Token *tk; (tk = consume_keyword("&&"));)
+        node = new_op(ND_LAND, node, inclusive_or(), tk->loc);
+    return node;
+}
+
+Node *inclusive_or() {
+    Node *node = exclusive_or();
+    for (Token *tk; (tk = consume_keyword("|"));)
+        node = new_op(ND_IOR, node, exclusive_or(), tk->loc);
+    return node;
+}
+
+Node *exclusive_or() {
+    Node *node = and();
+    for (Token *tk; (tk = consume_keyword("^"));)
+        node = new_op(ND_XOR, node, and(), tk->loc);
+    return node;
+}
+
+Node *and() {
     Node *node = equality();
-    for (;;) {
-        Token *tk;
-        if ((tk = consume_keyword("&&")))
-            node = new_op(ND_LAND, node, equality(), tk->loc);
-        else break;
-    }
+    for (Token *tk; (tk = consume_keyword("&"));)
+        node = new_op(ND_AND, node, equality(), tk->loc);
     return node;
 }
 

@@ -1,8 +1,7 @@
 
 #include "ccatd.h"
 
-Type *type_int;
-Type *type_char;
+Type *type_int; Type *type_char;
 Type *type_ptr_char;
 
 Type *ptr_of(Type *ty) {
@@ -56,3 +55,12 @@ Type *coerce_pointer(Type *t) {
     return NULL;
 }
 
+Type *binary_int_op_result(Type *lt, Type *rt) {
+    if (!is_integer(lt) || !is_integer(rt))
+        return NULL;
+
+    if (lt->ty == TY_CHAR && rt->ty == TY_CHAR)
+        return type_char;
+
+    return type_int;
+}

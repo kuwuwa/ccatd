@@ -40,5 +40,9 @@ int main() {
     int v = 10;
     assert_equals((1, (v = 20), 3, 4), 4);
     assert_equals(v, 20);
+
+    assert_equals(10 | 4, 14);
+    assert_equals(10 & 4, 0);
+    assert_equals(14 ^ 7, 9);
     return 0;
 }

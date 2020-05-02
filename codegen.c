@@ -490,6 +490,15 @@ void gen(Node *node) {
         case ND_DIV:
             printf("  cqo\nidiv rdi\n");
             break;
+        case ND_IOR:
+            printf("  or rax, rdi\n");
+            break;
+        case ND_XOR:
+            printf("  xor rax, rdi\n");
+            break;
+        case ND_AND:
+            printf("  and rax, rdi\n");
+            break;
         default:
             printf("  cmp rax, rdi\n");
             switch (node->kind) {

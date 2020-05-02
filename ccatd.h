@@ -96,12 +96,15 @@ typedef enum {
     ND_COND,
     ND_LOR,
     ND_LAND,
+    ND_IOR,
+    ND_XOR,
+    ND_AND,
+    ND_EQ,
+    ND_NEQ,
     ND_ADD,
     ND_SUB,
     ND_MUL,
     ND_DIV,
-    ND_EQ,
-    ND_NEQ,
     ND_LT,
     ND_LTE,
     ND_CALL,
@@ -185,6 +188,8 @@ bool is_integer(Type *type);
 bool is_pointer_compat(Type *type);
 
 Type *coerce_pointer(Type *type);
+
+Type *binary_int_op_result(Type *lhs, Type *rhs);
 
 // semantic analysis
 
