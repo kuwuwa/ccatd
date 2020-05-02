@@ -96,8 +96,7 @@ void tokenize(char *p) {
         }
 
         static char *tkids[] = {
-            "&&", "||",
-            "==", "!=", "<=", ">=",
+            "&&", "||", "==", "!=", "<=", ">=", "<<", ">>",
             "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
             "{", "}", ",", "&", "[", "]",
             "!", "?", ":", ",", "|", "^"
@@ -287,6 +286,7 @@ Node *exclusive_or();
 Node *and();
 Node *equality();
 Node *relational();
+Node *shift();
 Node *add();
 Node *mul();
 Node *unary();
@@ -555,17 +555,29 @@ Node *equality() {
 }
 
 Node *relational() {
-    Node *node = add();
+    Node *node = shift();
     for (;;) {
         Token *tk;
         if ((tk = consume_keyword("<")))
-            node = new_op(ND_LT, node, add(), tk->loc);
+            node = new_op(ND_LT, node, shift(), tk->loc);
         else if ((tk = consume_keyword("<=")))
-            node = new_op(ND_LTE, node, add(), tk->loc);
+            node = new_op(ND_LTE, node, shift(), tk->loc);
         else if ((tk = consume_keyword(">")))
-            node = new_op(ND_LT, add(), node, tk->loc);
+            node = new_op(ND_LT, shift(), node, tk->loc);
         else if ((tk = consume_keyword(">=")))
-            node = new_op(ND_LTE, add(), node, tk->loc);
+            node = new_op(ND_LTE, shift(), node, tk->loc);
+        else break;
+    }
+    return node;
+}
+
+Node *shift() {
+    Node *node = add();
+    for (Token *tk;;) {
+        if ((tk = consume_keyword("<<")))
+            node = new_op(ND_LSH, node, add(), tk->loc);
+        else if ((tk = consume_keyword(">>")))
+            node = new_op(ND_RSH, node, add(), tk->loc);
         else break;
     }
     return node;

@@ -465,6 +465,29 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_LSH || node->kind == ND_RSH) {
+        printf("# prepare shift\n");
+        gen(node->lhs);
+        printf("# right hand side\n");
+        gen(node->rhs);
+        printf("  pop rcx\n");
+        printf("  pop rax\n");
+        char *ax = ax_of_type(node->lhs->type);
+        switch (node->kind) {
+            case ND_LSH:
+                printf("  shl %s, cl\n", ax);
+                break;
+            case ND_RSH:
+                printf("  shr %s, cl\n", ax);
+                break;
+            default:
+                error("[internal] unreachable");
+        }
+        printf("  push rax\n");
+        stack_depth += 8;
+        return;
+    }
+
     printf("# prepare arithmetic operation\n");
     gen(node->lhs);
     printf("# right hand side\n");

@@ -431,6 +431,18 @@ void sema_expr(Node* node) {
         else
             error_loc(node->loc, "[semantic] type mismatch in an AND expression");
     }
+    if (node->kind == ND_LSH) {
+        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
+            return;
+        else
+            error_loc(node->loc, "[semantic] type mismatch in a left shift expression");
+    }
+    if (node->kind == ND_RSH) {
+        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
+            return;
+        else
+            error_loc(node->loc, "[semantic] type mismatch in a right shift expression");
+    }
     error_loc(node->loc, "unsupported feature");
 }
 

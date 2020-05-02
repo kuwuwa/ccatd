@@ -41,8 +41,11 @@ int main() {
     assert_equals((1, (v = 20), 3, 4), 4);
     assert_equals(v, 20);
 
-    assert_equals(10 | 4, 14);
+    assert_equals(10 | 4 | 16, 30);
     assert_equals(10 & 4, 0);
-    assert_equals(14 ^ 7, 9);
+    assert_equals(14 ^ 7 ^ 6, 15);
+
+    assert_equals(1 << 2 << 8, 1024);
+    assert_equals(3072 >> 6 >> 4, 3);
     return 0;
 }
