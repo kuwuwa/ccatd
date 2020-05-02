@@ -217,7 +217,7 @@ void gen(Node *node) {
                "  pop rdi\n");
         printf("  mov [rdi], %s\n", ax);
         printf("  push rax\n");
-        stack_depth += 8;
+        stack_depth -= 8;
         return;
     }
 
@@ -226,9 +226,9 @@ void gen(Node *node) {
         int revert_stack_depth = stack_depth;
         for (int i = 0; i < arg_len; i++)
             gen(vec_at(node->block, i));
-        for (int i = arg_len-1; i >= 0; i--) {
+        for (int i = arg_len-1; i >= 0; i--)
             printf("  pop %s\n", arg_regs64[i]);
-        }
+
         stack_depth = revert_stack_depth;
         int diff = (16 - stack_depth % 16) % 16;
         if (diff != 0)
@@ -313,6 +313,7 @@ void gen(Node *node) {
         printf("  pop rdi\n");
         char *ax = ax_of_type(node->type);
         printf("  mov [rdi], %s\n", ax);
+        stack_depth -= 16;
         return;
     }
 
@@ -326,9 +327,11 @@ void gen(Node *node) {
     }
 
     if (node->kind == ND_IF) {
+        printf("# if statement\n");
         gen(node->cond);
         printf("  pop rax\n"
                "  cmp rax, 0\n");
+        stack_depth -= 8;
         if (node->rhs == NULL) {
             printf("  je .Lend_if%d\n", label_num);
             gen_stmt(node->lhs);

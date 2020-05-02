@@ -204,9 +204,9 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
             }
         }
 
-        node->lhs->val = 8 + scoped_stack_space;
-        vec_push(local_vars, node->lhs);
         scoped_stack_space += type_size(node->lhs->type);
+        node->lhs->val = scoped_stack_space;
+        vec_push(local_vars, node->lhs);
         max_scoped_stack_space = scoped_stack_space > max_scoped_stack_space
             ? scoped_stack_space
             : max_scoped_stack_space;
