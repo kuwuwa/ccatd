@@ -40,6 +40,7 @@ void gen_globals() {
         }
     }
     printf("  .text\n");
+    // TODO: Don't need to generate literals used in a char array
     for (int i = 0; i < vec_len(environment->string_literals); i++) {
         char *str = vec_at(environment->string_literals, i);
         printf(".LC%d:\n", i);
@@ -300,6 +301,7 @@ void gen(Node *node) {
             return;
 
         if (node->rhs->kind == ND_ARRAY) {
+            // TODO: cannot handle nested arrays
             int len = vec_len(node->rhs->block);
             Type *elem_type = node->lhs->type->ptr_to;
             for (int i = 0; i < len; i++) {

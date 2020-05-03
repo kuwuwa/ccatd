@@ -484,6 +484,7 @@ void sema_lval(Node *node) {
     error_loc(node->loc, "[semantic] should be left value");
 }
 
+// TODO: Needs to be improved
 bool assignable(Type *lhs, Type *rhs) {
     if (lhs == type_int)
         return rhs == type_int || rhs == type_char;
