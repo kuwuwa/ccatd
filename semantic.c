@@ -256,10 +256,15 @@ void sema_expr(Node* node) {
         eq_type(type_int, node->type);
         return;
     }
-    // ND_NUM
+    // ND_STRING
     if (node->kind == ND_STRING) {
         if (!eq_type(type_ptr_char, node->type))
             error_loc(node->loc, "[internal] string");
+        return;
+    }
+    if (node->kind == ND_CHAR) {
+        if (!eq_type(type_char, node->type))
+            error_loc(node->loc, "[internal] char");
         return;
     }
     // ND_LVAR,

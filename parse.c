@@ -88,6 +88,7 @@ void tokenize(char *p) {
                     skip_column(&p, 1); // '\\'
                     char escaped = *p == 'n' ? '\n'
                                  : *p == 'r' ? '\r'
+                                 : *p == '0' ? '\0'
                                  : *p == '"' ? '"'
                                  : *p;
                     strbld_append(sb, escaped);
@@ -98,7 +99,7 @@ void tokenize(char *p) {
                 }
             }
             if (!*p)
-                error_loc2(loc_line, loc_column, "Closing quote \"\"\" expected");
+                error_loc2(loc_line, loc_column, "[parse] Closing double quote \"\\\"\" expected");
 
             char *content = strbld_build(sb);
             int len = strlen(content);
@@ -106,6 +107,33 @@ void tokenize(char *p) {
             vec_push(vec, new_token(TK_STRING, content, len));
 
             skip_column(&p, 1); // '"'
+            continue;
+        }
+
+        if (*p == '\'') {
+            Token *tk = new_token(TK_CHAR, NULL, 0);
+            skip_column(&p, 1); // '\''
+            char ch;
+            if (*(p+1) && *p == '\\') {
+                skip_column(&p, 1); // '\\'
+                ch = *p == 'n' ? '\n'
+                   : *p == 'r' ? '\r'
+                   : *p == '0' ? '\0'
+                   : *p == '\'' ? '\''
+                   : *p;
+            } else if (*p)
+                ch = *p;
+            else
+                error_loc2(loc_line, loc_column, "[parse] unsupported character");
+
+            skip_char(&p, *p); // content
+
+            if (*p != '\'')
+                error_loc2(loc_line, loc_column, "[parse] Closing single quote \"'\" expected");
+            skip_char(&p, *p); // '\''
+
+            tk->val = ch;
+            vec_push(vec, tk);
             continue;
         }
 
@@ -687,6 +715,10 @@ Node *term() {
         node->name = tk->str;
         node->len = strlen(tk->str);
         node->type = type_ptr_char;
+    } else if ((tk = consume(TK_CHAR))) {
+        node = new_node(ND_CHAR, tk->loc);
+        node->val = tk->val;
+        node->type = type_char;
     }
 
     if (node == NULL) {

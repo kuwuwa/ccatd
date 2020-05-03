@@ -187,6 +187,12 @@ void gen(Node *node) {
         stack_depth += 8;
         return;
     }
+    if (node->kind == ND_CHAR) {
+        printf("  mov ax, %d\n", (char) node->val);
+        printf("  push %d\n", node->val);
+        stack_depth += 8;
+        return;
+    }
     if (node->kind == ND_STRING) {
         for (int i = 0; i < vec_len(environment->string_literals); i++) {
             char *str = vec_at(environment->string_literals, i);

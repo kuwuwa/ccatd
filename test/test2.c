@@ -55,5 +55,13 @@ int main() {
     for (int i = 0; i <= 5; i = i+1) s = s + i;
     assert_equals(s, 15);
 
+    char str[5];
+    str[0] = 'c';
+    str[1] = 'h';
+    str[2] = 'a';
+    str[3] = 'r';
+    str[4] = 0;
+    print(str);
+
     return 0;
 }

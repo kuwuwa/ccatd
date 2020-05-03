@@ -65,6 +65,7 @@ typedef enum {
     TK_NUM,
     TK_IDT,
     TK_EOF,
+    TK_CHAR,
     TK_STRING,
 
     TK_RETURN,
@@ -118,6 +119,7 @@ typedef enum {
     ND_NEG,
     ND_INDEX,
     ND_GVAR,
+    ND_CHAR,
     ND_STRING,
     ND_ARRAY,
 
