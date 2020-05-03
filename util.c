@@ -42,6 +42,18 @@ void debug(char *fmt, ...) {
     fprintf(stderr, "\n");
 }
 
+char *escape_string(char *str) {
+    int len = strlen(str);
+    StringBuilder *sb = strbld_new();
+    for (int i = 0; i < len; i++) {
+        char ch = str[i];
+        if (ch == '\n') strbld_append_str(sb, "\\n");
+        else if (ch == '"') strbld_append_str(sb, "\\\"");
+        else strbld_append(sb, ch);
+    }
+    return strbld_build(sb);
+}
+
 char *mkstr(char *str, int len) {
     char *p = calloc(len+1, sizeof(char));
     strncpy(p, str, len);

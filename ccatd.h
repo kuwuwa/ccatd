@@ -42,7 +42,7 @@ void *vec_at(Vec *vec, int idx);
 StringBuilder *strbld_new();
 char *strbld_build(StringBuilder *sb);
 void strbld_append(StringBuilder *sb, char ch);
-void strbld_append_str(StringBuilder *sb, int len, char *ch);
+void strbld_append_str(StringBuilder *sb, char *ch);
 
 // util
 
@@ -51,6 +51,7 @@ void error_loc(Location *loc, char *fmt, ...);
 void error_loc2(int line, int col, char *fmt, ...);
 void debug(char *fmt, ...);
 char *mkstr(char *ptr, int len);
+char *escape_string(char* str);
 
 // tokenize
 

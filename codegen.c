@@ -7,7 +7,7 @@
 char *arg_regs64[6] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
 
 void gen_globals();
-void gen_const(Node*);
+void gen_const(Type*, Node*);
 Node *gen_const_calc(Node*);
 void gen(Node*);
 void gen_stmt(Node*);
@@ -36,18 +36,18 @@ void gen_globals() {
             printf("  .zero %d\n", type_size(global->type));
         else {
             Node *rhs = gen_const_calc(global->rhs);
-            gen_const(rhs);
+            gen_const(global->type, rhs);
         }
     }
     printf("  .text\n");
     for (int i = 0; i < vec_len(environment->string_literals); i++) {
         char *str = vec_at(environment->string_literals, i);
         printf(".LC%d:\n", i);
-        printf("  .string \"%s\"\n", str);
+        printf("  .string \"%s\"\n", escape_string(str));
     }
 }
 
-void gen_const(Node *node) {
+void gen_const(Type *typ, Node *node) {
     if (node->kind == ND_NUM && node->type == type_int) {
         printf("  .long %d\n", node->val);
         return;
@@ -63,19 +63,28 @@ void gen_const(Node *node) {
         return;
     }
     if (node->kind == ND_STRING) {
-        int len = vec_len(environment->string_literals);
-        for (int i = 0; i < len; i++) {
-            char *str = vec_at(environment->string_literals, i);
-            if (node->len == strlen(str) && !strcmp(str, node->name)) {
-                printf("  .quad .LC%d\n", i);
-                return;
+        if (typ->ty == TY_PTR) {
+            int len = vec_len(environment->string_literals);
+            for (int i = 0; i < len; i++) {
+                char *str = vec_at(environment->string_literals, i);
+                if (node->len == strlen(str) && !strcmp(str, node->name)) {
+                    printf("  .quad .LC%d\n", i);
+                    return;
+                }
             }
-        }
+        } else if (typ->ty == TY_ARRAY) {
+            int len = strlen(node->name);
+            printf("  .string \"%s\"\n", escape_string(node->name));
+            if (len+1 < typ->array_size)
+                printf("  .zero %d\n", (typ->array_size - len));
+        } else
+            error_loc(node->loc, "[interval] unexpected string occurred");
+        return;
     }
     if (node->kind == ND_ARRAY) {
         int arr_len = vec_len(node->block);
         for (int i = 0; i < arr_len; i++)
-            gen_const(vec_at(node->block, i));
+            gen_const(typ->ptr_to, vec_at(node->block, i));
 
         if (arr_len < node->type->array_size)
             printf("  .zero %d\n",

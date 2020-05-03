@@ -38,14 +38,14 @@ try_stdout() {
   actual=$(cat _temp.txt)
 
   if [ "$actual" != "$expected" ]; then
-    echo "\${filename} => $expected expected, but actually $actual"
+    echo "${filename} => $expected expected, but actually $actual"
     exit 1
   fi
 }
 
 try_stdout 'sample/call2.c' 'OK'
-try_stdout 'sample/char2.c' 'Hello, World!'
-try_stdout 'sample/string2.c' 'hack'
+try_stdout 'sample/char2.c' "Hello, World!"
+try_stdout 'sample/string2.c' '"hack"'
 
 try_return 'sample/assignment2.c' 4
 try_return 'test/test1.c' 0

@@ -75,7 +75,6 @@ void strbld_append(StringBuilder *sb, char ch) {
     sb->data[sb->len++] = ch;
 }
 
-void strbld_append_str(StringBuilder *sb, int len, char *ch) {
-    for (int i = 0; i < len; i++)
-        strbld_append(sb, ch[i]);
+void strbld_append_str(StringBuilder *sb, char *ch) {
+    while (*ch) strbld_append(sb, *(ch++));
 }

@@ -1,4 +1,4 @@
 int main() {
-    print("hack");
+    print("\"hack\"");
     return 0;
 }

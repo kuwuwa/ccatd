@@ -82,16 +82,30 @@ void tokenize(char *p) {
 
         if (*p == '"') {
             skip_column(&p, 1); // '"'
-            char *q = p;
-            while (*q && *q != '"') q++;
-            if (!*q)
+            StringBuilder *sb = strbld_new();
+            while (*p && *p != '"') {
+                if (*(p+1) && *p == '\\') {
+                    skip_column(&p, 1); // '\\'
+                    char escaped = *p == 'n' ? '\n'
+                                 : *p == 'r' ? '\r'
+                                 : *p == '"' ? '"'
+                                 : *p;
+                    strbld_append(sb, escaped);
+                    skip_char(&p, *p);
+                } else {
+                    strbld_append(sb, *p);
+                    skip_char(&p, *p);
+                }
+            }
+            if (!*p)
                 error_loc2(loc_line, loc_column, "Closing quote \"\"\" expected");
-            int len = q - p;
 
-            vec_push(environment->string_literals, mkstr(p, len));
-            vec_push(vec, new_token(TK_STRING, p, len));
+            char *content = strbld_build(sb);
+            int len = strlen(content);
+            vec_push(environment->string_literals, content);
+            vec_push(vec, new_token(TK_STRING, content, len));
 
-            skip_column(&p, (q - p) + 1); // next to '"'
+            skip_column(&p, 1); // '"'
             continue;
         }
 
