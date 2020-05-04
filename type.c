@@ -28,6 +28,15 @@ int type_size(Type *t) {
         return 8;
     if (t->ty == TY_ARRAY)
         return t->array_size * type_size(t->ptr_to);
+    if (t->ty == TY_STRUCT) {
+        int size = 0;
+        int num_fields = vec_len(t->strct->fields);
+        for (int i = 0; i < num_fields; i++) {
+            Node *field = vec_at(t->strct->fields, i);
+            size += type_size(field->type);
+        }
+        return size;
+    }
 
     error("type_size: unsupported type");
     return -1;

@@ -169,6 +169,11 @@ void tokenize(char *p) {
             skip_column(&p, 6);
             continue;
         }
+        if (len == 6 && !memcmp("struct", p, 6)) {
+            vec_push(vec, new_token(TK_KWD, p, 6));
+            skip_column(&p, 6);
+            continue;
+        }
         if (len == 2 && !memcmp("if", p, 2)) {
             vec_push(vec, new_token(TK_IF, p, 0));
             skip_column(&p, 2);
@@ -253,11 +258,12 @@ Token *expect(Token_kind kind) {
     return tk;
 }
 
-void expect_keyword(char* str) {
+Token *expect_keyword(char* str) {
     Token *tk = vec_at(tokens, index);
     if (tk->kind != TK_KWD || strlen(str) != strlen(tk->str) || strcmp(str, tk->str))
         error_loc(tk->loc, "\"%s\" expected", str);
     index++;
+    return tk;
 }
 
 bool lookahead_type(char* str) {
@@ -265,8 +271,8 @@ bool lookahead_type(char* str) {
     return tk != NULL && strlen(str) == strlen(tk->str) && !strcmp(str, tk->str);
 }
 
-bool lookahead_any_type() {
-    return lookahead_type("int") || lookahead_type("char");
+bool lookahead_var_decl() {
+    return lookahead_keyword("struct") || lookahead_type("int") || lookahead_type("char");
 }
 
 Type *consume_type_identifier() {
@@ -281,6 +287,7 @@ Type *consume_type_identifier() {
 }
 
 Type *consume_type_pre() {
+
     Type *typ = consume_type_identifier();
     if (typ == NULL)
         return NULL;
@@ -319,6 +326,8 @@ Node *new_node_num(int v, Location *loc) {
 
 void toplevel();
 Func *func(Type *ty, Token *name);
+Struct *struct_decl();
+Node *var_decl();
 Type *type();
 void type_array(Type**);
 Vec *params();
@@ -358,6 +367,10 @@ void parse() {
 }
 
 void toplevel() {
+    if (consume_keyword("struct")) {
+        vec_push(environment->structs, struct_decl());
+        return;
+    }
     Type *ty = type();
     Token *tk = expect(TK_IDT);
     if (consume_keyword("(")) {
@@ -398,7 +411,50 @@ Func *func(Type *ty, Token *name) {
     return func;
 }
 
+Struct *struct_decl() {
+    Token *id = expect(TK_IDT);
+
+    Struct *s = calloc(1, sizeof(Struct));
+    s->name = id->str;
+    s->fields = vec_new();
+    s->loc = id->loc;
+
+    expect_keyword("{");
+
+    locals = vec_new();
+    while (!consume_keyword("}")) {
+        vec_push(s->fields, var_decl());
+        expect_keyword(";");
+    }
+
+    expect_keyword(";");
+
+    return s;
+}
+
+Node *var_decl() {
+    Type *typ = type();
+    Token *tk = expect(TK_IDT);
+    type_array(&typ);
+    return push_lvar(typ, tk);
+}
+
 Type *type() {
+    if (consume_keyword("struct")) {
+        Token *strc_id = expect(TK_IDT);
+        int len = vec_len(environment->structs);
+        for (int i = 0; i < len; i++) {
+            Struct *strc = vec_at(environment->structs, i);
+            if (!strncmp(strc->name, strc_id->str, strlen(strc_id->str))) {
+                Type *typ = calloc(1, sizeof(Type));
+                typ->ty = TY_STRUCT;
+                typ->strct = strc;
+                return typ;
+            }
+        }
+        error_loc(strc_id->loc, "undefined struct");
+    }
+
     Type *typ = consume_type_pre();
     if (typ == NULL)
         error_loc(lookahead_any()->loc, "unknown type");
@@ -410,16 +466,10 @@ Vec *params() {
     if (consume_keyword(")"))
         return vec;
 
-    Type *ty = type();
-    Token *tk = expect(TK_IDT);
-    Node *param_0 = push_lvar(ty, tk);
-    vec_push(vec, param_0);
+    vec_push(vec, var_decl());
     while (!consume_keyword(")")) {
         expect_keyword(",");
-        Type *ty = type();
-        Token *tk = expect(TK_IDT);
-        Node *param_i = push_lvar(ty, tk);
-        vec_push(vec, param_i);
+        vec_push(vec, var_decl());
     }
     return vec;
 }
@@ -458,20 +508,16 @@ Node *stmt() {
         expect_keyword(")");
         node->body = stmt();
     } else if ((tk = consume(TK_FOR))) {
+        int revert_locals_len = vec_len(locals);
         node = new_node(ND_FOR, tk->loc);
         expect_keyword("(");
         if (!consume_keyword(";")) {
-            if (!lookahead_any_type())
-                node->lhs = expr();
-            else {
-                Type *typ = type();
-                Token *id = expect(TK_IDT);
-                type_array(&typ);
+            if (lookahead_var_decl()) {
+                Node *var = var_decl();
                 Node *e = consume_keyword("=") ? rhs_expr() : NULL;
-
-                Node *var = push_lvar(typ, id);
-                node->lhs = new_op(ND_VARDECL, var, e, id->loc);
-            }
+                node->lhs = new_op(ND_VARDECL, var, e, var->loc);
+            } else
+                node->lhs = expr();
             expect_keyword(";");
         }
         if (!consume_keyword(";")) {
@@ -483,19 +529,17 @@ Node *stmt() {
             expect_keyword(")");
         }
         node->body = stmt();
+        while (vec_len(locals) > revert_locals_len) vec_pop(locals);
     } else if (lookahead_keyword("{")) {
         Vec *vec = block();
         node = new_node(ND_BLOCK, NULL);
         node->block = vec;
-    } else if (lookahead_any_type()) {
-        Type *typ = type();
-        Token *id = expect(TK_IDT);
-        type_array(&typ);
+    } else if (lookahead_var_decl()) {
+        Node *lhs = var_decl();
         Node *rhs = consume_keyword("=") ? rhs_expr() : NULL;
         expect_keyword(";");
 
-        Node *lhs = push_lvar(typ, id);
-        node = new_op(ND_VARDECL, lhs, rhs, id->loc);
+        node = new_op(ND_VARDECL, lhs, rhs, lhs->loc);
     } else {
         node = expr();
         expect_keyword(";");
@@ -754,29 +798,42 @@ Vec *args() {
     return vec;
 }
 
-Node *find_var(Token *token) {
-    if (token->kind != TK_IDT)
-        error("find_lvar: lvar expected\n");
-
+Node *find_lvar(Token *token) {
     int locals_len = locals == NULL ? 0 : vec_len(locals);
     for (int i = 0; i < locals_len; i++) {
         Node *var = vec_at(locals, i);
         if (strlen(token->str) == var->len && !strcmp(token->str, var->name))
             return var;
     }
+    return NULL;
+}
 
+Node *find_gvar(Token *token) {
     int globals_len = vec_len(environment->globals);
     for (int i = 0; i < globals_len; i++) {
         Node *var = vec_at(environment->globals, i);
         if (strlen(token->str) == var->len && !strcmp(token->str, var->name))
             return var;
     }
-
     return NULL;
 }
 
+Node *find_var(Token *token) {
+    if (token->kind != TK_IDT)
+        error("find_var: variable expected\n");
+
+    Node *lvar = find_lvar(token);
+    if (lvar != NULL)
+        return lvar;
+
+    return find_gvar(token);
+}
+
 Node *push_lvar(Type *ty, Token *tk) {
-    Node *var = new_node(ND_LVAR, NULL);
+    if (find_lvar(tk) != NULL)
+        error_loc(tk->loc, "[parse] duplicate variable");
+
+    Node *var = new_node(ND_LVAR, tk->loc);
     var->name = tk->str;
     var->type = ty;
     var->len = strlen(tk->str);

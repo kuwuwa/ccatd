@@ -22,6 +22,9 @@ struct StringBuilder;
 typedef struct Func Func;
 struct Func;
 
+typedef struct Struct Struct;
+struct Struct;
+
 typedef struct Type Type;
 struct Type;
 
@@ -155,10 +158,17 @@ struct Func {
     Location *loc;
 };
 
+struct Struct {
+    char *name;
+    Vec *fields;
+    Location *loc;
+};
+
 struct Environment {
     Vec *functions;
     Vec *globals;
     Vec *string_literals;
+    Vec *structs;
 };
 
 Environment *environment;
@@ -172,9 +182,10 @@ Node *new_node_num(int v, Location *loc);
 // type
 
 struct Type {
-    enum { TY_INT, TY_CHAR, TY_PTR, TY_ARRAY } ty;
+    enum { TY_INT, TY_CHAR, TY_PTR, TY_ARRAY, TY_STRUCT } ty;
     Type* ptr_to;
     int array_size;
+    Struct *strct;
 };
 
 extern Type *type_int;
