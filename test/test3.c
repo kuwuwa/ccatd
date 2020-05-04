@@ -1,7 +1,7 @@
 
 struct Foo {
-    int a;
     char *name;
+    int a;
 };
 
 struct Bar {
@@ -22,6 +22,12 @@ int main() {
 
     struct Foo foo_arr[12];
     assert_equals(sizeof(foo_arr), 144);
+
+    foo.a = 10;
+    assert_equals(foo.a, 10);
+
+    (bar.b)[3] = 35;
+    assert_equals(bar.b[3], 35);
 
     return 0;
 }

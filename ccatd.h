@@ -125,6 +125,7 @@ typedef enum {
     ND_CHAR,
     ND_STRING,
     ND_ARRAY,
+    ND_ATTR,
 
     // statements
     ND_VARDECL,
@@ -137,16 +138,17 @@ typedef enum {
 
 struct Node {
     Node_kind kind;
-    Node *cond;     // ND_IF, ND_WHILE
-    Node *lhs;      // binary operators
-    Node *rhs;      // binary operators
-    Node *body;     // ND_WHILE, ND_FOR
-    Vec *block;     // ND_BLOCK, ND_CALL
-    int val;        // ND_NUM, ND_LVAR
-    char *name;     // ND_CALL, ND_LVAR, ND_STRING
-    int len;        // ND_CALL, ND_STRING
+    Node *cond;
+    Node *lhs;
+    Node *rhs;
+    Node *body;
+    Vec *block;
+    int val;
+    char *name;
+    int len;
     Type *type;
     Location *loc;
+    Token *attr;
 };
 
 struct Func {

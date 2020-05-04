@@ -285,6 +285,27 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_ATTR) {
+        printf("# prepare attribute access\n");
+        gen_lval(node->lhs);
+        printf("# offset \n");
+        printf("  pop rax\n"
+               "  add rax, %d\n", node->val);
+        if (node->type->ty == TY_ARRAY) {
+            // pass; put an beginning address of given array
+        } else {
+            int size = type_size(node->type);
+            if (size == 1)
+                printf("  movsx eax, BYTE PTR [rax]\n");
+            else if (size == 4)
+                printf("  mov eax, [rax]\n");
+            else 
+                printf("  mov rax, [rax]\n");
+        }
+        printf("  push rax\n");
+        return;
+    }
+
     if (node->kind == ND_SIZEOF) {
         printf("  mov rax, %d\n"
                "  push %d\n", node->val, node->val);
@@ -621,6 +642,13 @@ void gen_lval(Node *node) {
         return;
     } else if (node->kind == ND_NUM) {
         gen(node);
+        return;
+    } else if (node->kind == ND_ATTR) {
+        printf("# prepare attribute access\n");
+        gen_lval(node->lhs);
+        printf("  pop rax\n"
+               "  add rax, %d\n", node->val);
+        printf("  push rax\n");
         return;
     }
     error("term should be a left value");

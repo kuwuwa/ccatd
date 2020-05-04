@@ -141,7 +141,7 @@ void tokenize(char *p) {
             "&&", "||", "==", "!=", "<=", ">=", "<<", ">>",
             "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
             "{", "}", ",", "&", "[", "]",
-            "!", "?", ":", ",", "|", "^", "%"
+            "!", "?", ":", ",", "|", "^", "%", "."
         };
         int idx = mem_str(p, tkids, sizeof(tkids) / sizeof(char*));
         if (idx >= 0) {
@@ -745,14 +745,13 @@ Node *unary() {
 
 Node *term() {
     Token *tk = NULL;
+    Node *node = NULL;
     if ((tk = consume_keyword("("))) {
-        Node *node = expr();
+        node = expr();
         if (!consume_keyword(")"))
             error_loc(tk->loc, ") couldn't be found");
-        return node;
     }
 
-    Node *node = NULL;
     if ((tk = consume(TK_IDT))) {
         if (consume_keyword("(")) { // CALL
             Vec *vec = args();
@@ -786,16 +785,24 @@ Node *term() {
         error_loc(tk->loc, "invalid expression or statement");
     }
 
-    while ((tk = consume_keyword("["))) {
-        Node *index_node = expr();
-        expect_keyword("]");
+    for (Token *tk;;) {
+        if ((tk = consume_keyword("["))) {
+            Node *index_node = expr();
+            expect_keyword("]");
 
-        Node *add_node = new_op(ND_ADD, node, index_node, tk->loc);
+            Node *add_node = new_op(ND_ADD, node, index_node, tk->loc);
 
-        Node *next_node = new_node(ND_DEREF, tk->loc);
-        next_node->lhs = add_node;
+            Node *next_node = new_node(ND_DEREF, tk->loc);
+            next_node->lhs = add_node;
 
-        node = next_node;
+            node = next_node;
+        } else if ((tk = consume_keyword("."))) {
+            Token *attr = expect(TK_IDT);
+            Node *attr_node = new_op(ND_ATTR, node, NULL, tk->loc);
+            attr_node->attr = attr;
+            node = attr_node;
+        } else
+            break;
     }
 
     return node;

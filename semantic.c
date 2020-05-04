@@ -339,11 +339,30 @@ void sema_expr(Node* node) {
         sema_expr(node->rhs);
 
         if (!eq_type(node->lhs->type, node->rhs->type))
-            error_loc(node->loc, "type mismatch in a conditional expression");
+            error_loc(node->loc, "[semantic] type mismatch in a conditional expression");
         return;
     }
     if (node->kind == ND_GVAR)
         return;
+    if (node->kind == ND_ATTR) {
+        sema_expr(node->lhs);
+        if (node->lhs->type->ty != TY_STRUCT)
+            error_loc(node->loc, "[semantic] attribute access to a non-struct value");
+
+        Struct *strc = node->lhs->type->strct;
+        int len = vec_len(strc->fields);
+        int offset = 0;
+        for (int i = 0; i < len; i++) {
+            Node *field = vec_at(strc->fields, i);
+            if (!strcmp(field->name, node->attr->str)) {
+                node->type = field->type;
+                node->val = offset;
+                return;
+            }
+            offset += type_size(field->type);
+        }
+        error_loc(node->loc, "[semantic] the given attribute doesn't exist");
+    }
 
     sema_expr(node->lhs);
     sema_expr(node->rhs);
@@ -482,7 +501,8 @@ void sema_array(Type* ty, Node* arr) {
 }
 
 void sema_lval(Node *node) {
-    if (node->kind == ND_LVAR || node->kind == ND_GVAR || node->kind == ND_DEREF) {
+    Node_kind k = node->kind;
+    if (k == ND_LVAR || k == ND_GVAR || k == ND_DEREF || k == ND_ATTR) {
         sema_expr(node);
         return;
     }
