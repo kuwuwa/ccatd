@@ -29,5 +29,15 @@ int main() {
     (bar.b)[3] = 35;
     assert_equals(bar.b[3], 35);
 
+    struct Foo* foo_ptr = &foo;
+    assert_equals(foo_ptr->a, 10);
+    foo_ptr->a = 20;
+    assert_equals(foo.a, 20);
+
+    struct Bar *bar_ptr = &bar;
+    assert_equals(bar_ptr->b[3], 35);
+    bar_ptr->b[3] = 123;
+    assert_equals(bar.b[3], 123);
+
     return 0;
 }

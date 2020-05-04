@@ -138,7 +138,7 @@ void tokenize(char *p) {
         }
 
         static char *tkids[] = {
-            "&&", "||", "==", "!=", "<=", ">=", "<<", ">>",
+            "&&", "||", "==", "!=", "<=", ">=", "<<", ">>", "->",
             "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
             "{", "}", ",", "&", "[", "]",
             "!", "?", ":", ",", "|", "^", "%", "."
@@ -211,6 +211,41 @@ void tokenize(char *p) {
 
     tokens = vec;
 }
+
+void toplevel();
+Func *func(Type *ty, Token *name);
+Struct *struct_decl(Token *id);
+Node *var_decl();
+Type *type();
+void type_array(Type**);
+Vec *params();
+Node *stmt();
+Vec *block();
+
+Node *rhs_expr();
+Node *array(Location *start);
+
+Node *expr();
+Node *assignment();
+Node *conditional();
+Node *logical_or();
+Node *logical_and();
+Node *inclusive_or();
+Node *exclusive_or();
+Node *and();
+Node *equality();
+Node *relational();
+Node *shift();
+Node *add();
+Node *mul();
+Node *unary();
+Node *term();
+
+Vec *args();
+
+Node *find_var(Token*);
+Node *push_lvar(Type*, Token*);
+Type *find_struct(char *name);
 
 Vec *tokens;
 int index = 0;
@@ -287,8 +322,13 @@ Type *consume_type_identifier() {
 }
 
 Type *consume_type_pre() {
+    Type *typ;
+    if (consume_keyword("struct")) {
+        Token *strc_id = expect(TK_IDT);
+        typ = find_struct(strc_id->str);
+    } else
+        typ = consume_type_identifier();
 
-    Type *typ = consume_type_identifier();
     if (typ == NULL)
         return NULL;
 
@@ -323,41 +363,6 @@ Node *new_node_num(int v, Location *loc) {
     node->val = v;
     return node;
 }
-
-void toplevel();
-Func *func(Type *ty, Token *name);
-Struct *struct_decl(Token *id);
-Node *var_decl();
-Type *type();
-void type_array(Type**);
-Vec *params();
-Node *stmt();
-Vec *block();
-
-Node *rhs_expr();
-Node *array(Location *start);
-
-Node *expr();
-Node *assignment();
-Node *conditional();
-Node *logical_or();
-Node *logical_and();
-Node *inclusive_or();
-Node *exclusive_or();
-Node *and();
-Node *equality();
-Node *relational();
-Node *shift();
-Node *add();
-Node *mul();
-Node *unary();
-Node *term();
-
-Vec *args();
-
-Node *find_var(Token*);
-Node *push_lvar(Type*, Token*);
-Type *find_struct(char *name);
 
 void parse() {
     int len = vec_len(tokens);
@@ -462,14 +467,6 @@ Node *var_decl() {
 }
 
 Type *type() {
-    if (consume_keyword("struct")) {
-        Token *strc_id = expect(TK_IDT);
-        Type *typ = find_struct(strc_id->str);
-        if (typ == NULL)
-            error_loc(strc_id->loc, "undefined struct");
-        return typ;
-    }
-
     Type *typ = consume_type_pre();
     if (typ == NULL)
         error_loc(lookahead_any()->loc, "unknown type");
@@ -801,6 +798,12 @@ Node *term() {
             Node *attr_node = new_op(ND_ATTR, node, NULL, tk->loc);
             attr_node->attr = attr;
             node = attr_node;
+        } else if ((tk = consume_keyword("->"))) {
+            Token *attr = expect(TK_IDT);
+            Node *l = new_op(ND_DEREF, node, NULL, tk->loc);
+            Node *next_node = new_op(ND_ATTR, l, NULL, tk->loc);
+            next_node->attr = attr;
+            node = next_node;
         } else
             break;
     }
