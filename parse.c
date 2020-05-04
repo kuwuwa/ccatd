@@ -326,7 +326,7 @@ Node *new_node_num(int v, Location *loc) {
 
 void toplevel();
 Func *func(Type *ty, Token *name);
-Struct *struct_decl();
+Struct *struct_decl(Token *id);
 Node *var_decl();
 Type *type();
 void type_array(Type**);
@@ -355,10 +355,9 @@ Node *term();
 
 Vec *args();
 
-// initializer
-
 Node *find_var(Token*);
 Node *push_lvar(Type*, Token*);
+Type *find_struct(char *name);
 
 void parse() {
     int len = vec_len(tokens);
@@ -368,7 +367,35 @@ void parse() {
 
 void toplevel() {
     if (consume_keyword("struct")) {
-        vec_push(environment->structs, struct_decl());
+        Token *strc_id = expect(TK_IDT);
+        if (lookahead_keyword("{")) {
+            Struct *strc = struct_decl(strc_id);
+            expect_keyword(";");
+            vec_push(environment->structs, strc);
+        } else {
+            Type *typ = find_struct(strc_id->str);
+            if (typ == NULL)
+                error_loc(strc_id->loc, "undefined struct");
+
+            Token *tk = expect(TK_IDT);
+
+            Node *node = new_node(ND_GVAR, tk->loc);
+            node->name = tk->str;
+            node->len = strlen(tk->str);
+
+            while (consume_keyword("[")) {
+                Token *len = expect(TK_NUM);
+                expect_keyword("]");
+                typ = array_of(typ, len->val);
+            }
+
+            node->rhs = consume_keyword("=") ? rhs_expr() : NULL;
+
+            expect_keyword(";");
+
+            node->type = typ;
+            vec_push(environment->globals, node);
+        }
         return;
     }
     Type *ty = type();
@@ -411,9 +438,7 @@ Func *func(Type *ty, Token *name) {
     return func;
 }
 
-Struct *struct_decl() {
-    Token *id = expect(TK_IDT);
-
+Struct *struct_decl(Token *id) {
     Struct *s = calloc(1, sizeof(Struct));
     s->name = id->str;
     s->fields = vec_new();
@@ -426,9 +451,6 @@ Struct *struct_decl() {
         vec_push(s->fields, var_decl());
         expect_keyword(";");
     }
-
-    expect_keyword(";");
-
     return s;
 }
 
@@ -442,17 +464,10 @@ Node *var_decl() {
 Type *type() {
     if (consume_keyword("struct")) {
         Token *strc_id = expect(TK_IDT);
-        int len = vec_len(environment->structs);
-        for (int i = 0; i < len; i++) {
-            Struct *strc = vec_at(environment->structs, i);
-            if (!strncmp(strc->name, strc_id->str, strlen(strc_id->str))) {
-                Type *typ = calloc(1, sizeof(Type));
-                typ->ty = TY_STRUCT;
-                typ->strct = strc;
-                return typ;
-            }
-        }
-        error_loc(strc_id->loc, "undefined struct");
+        Type *typ = find_struct(strc_id->str);
+        if (typ == NULL)
+            error_loc(strc_id->loc, "undefined struct");
+        return typ;
     }
 
     Type *typ = consume_type_pre();
@@ -840,4 +855,19 @@ Node *push_lvar(Type *ty, Token *tk) {
 
     vec_push(locals, var);
     return var;
+}
+
+Type *find_struct(char *name) {
+    int len = vec_len(environment->structs);
+    for (int i = 0; i < len; i++) {
+        Struct *strc = vec_at(environment->structs, i);
+        int slen = strlen(strc->name);
+        if (strlen(name) == slen && !strncmp(strc->name, name, slen)) {
+            Type *typ = calloc(1, sizeof(Type));
+            typ->ty = TY_STRUCT;
+            typ->strct = strc;
+            return typ;
+        }
+    }
+    return NULL;
 }

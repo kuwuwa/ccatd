@@ -1,14 +1,4 @@
 
-struct Foo {
-    int a;
-    char *name;
-};
-
-struct Bar {
-    int a[10];
-    char b[10];
-};
-
 int fib_arr[13] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34};
 int x = 20;
 char *hello_world = "Hello, World!\n";
@@ -72,15 +62,6 @@ int main() {
     str[3] = 'r';
     str[4] = 0;
     print(str);
-
-    struct Foo foo;
-    assert_equals(sizeof(foo), 12);
-
-    struct Bar bar;
-    assert_equals(sizeof(bar), 50);
-
-    struct Foo foo_arr[12];
-    assert_equals(sizeof(foo_arr), 144);
 
     return 0;
 }
