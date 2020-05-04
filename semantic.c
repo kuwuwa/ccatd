@@ -516,7 +516,9 @@ bool assignable(Type *lhs, Type *rhs) {
     if (lhs == type_char)
         return rhs == type_char || rhs == type_int;
     if (is_pointer_compat(lhs))
-        return is_pointer_compat(rhs) && eq_type(lhs->ptr_to, rhs->ptr_to);
+        return is_pointer_compat(rhs);
+    if (lhs->ty == TY_STRUCT && rhs->ty == TY_STRUCT)
+        return false;
 
     error("[internal] assignable: unsupported type appeared");
     return false;
@@ -527,9 +529,8 @@ bool eq_type(Type* t1, Type* t2) {
         return eq_type(t1->ptr_to, t2->ptr_to);
     } else if (t1->ty == TY_ARRAY && t2->ty == TY_ARRAY) {
         return eq_type(t1->ptr_to, t2->ptr_to);
-    } else {
+    } else
         return t1->ty == t2->ty;
-    }
 }
 
 Node *find_lvar_sema(Node *target) {

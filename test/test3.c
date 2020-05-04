@@ -9,6 +9,13 @@ struct Bar {
     char b[10];
 };
 
+int bar_total(struct Bar *bar) {
+    int tot = 0;
+    for (int i = 0; i < 10; i = i+1)
+        tot = tot + bar->a[i];
+    return tot;
+}
+
 struct Foo global_foo_arr[20];
 
 int main() {
@@ -38,6 +45,11 @@ int main() {
     assert_equals(bar_ptr->b[3], 35);
     bar_ptr->b[3] = 123;
     assert_equals(bar.b[3], 123);
+
+    for (int i = 0; i < 10; i = i+1)
+        bar.a[i] = i;
+
+    assert_equals(bar_total(bar_ptr), 45);
 
     return 0;
 }
