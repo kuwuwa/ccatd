@@ -11,7 +11,7 @@ int index = 0;
 
 void toplevel();
 Func *func(Type *typ, Token *name);
-Struct *struct_decl(Token *id);
+Node *parse_struct(Node_kind kind, Location *loc);
 Node *var_decl();
 Type *type();
 void type_array(Type**);
@@ -75,39 +75,22 @@ void parse() {
 }
 
 void toplevel() {
-    if (consume_keyword("struct")) {
-        Token *strc_id = expect(TK_IDT);
-        if (lookahead_keyword("{")) {
-            Struct *strc = struct_decl(strc_id);
-            expect_keyword(";");
-            vec_push(environment->structs, strc);
-        } else {
-            Type *typ = find_struct(strc_id->str);
-            if (typ == NULL)
-                error_loc(strc_id->loc, "undefined struct");
+    Token *tk;
+    if ((tk = consume_keyword("struct"))) {
+        locals = vec_new();
+        Node *gvar = parse_struct(ND_GVAR, tk->loc);
 
-            Token *tk = expect(TK_IDT);
-
-            while (consume_keyword("[")) {
-                Token *len = expect(TK_NUM);
-                expect_keyword("]");
-                typ = array_of(typ, len->val);
-            }
-
-            Node *node = mknode(ND_GVAR, tk->loc);
-            node->name = tk->str;
-            node->len = strlen(tk->str);
-            node->rhs = consume_keyword("=") ? rhs_expr() : NULL;
-            node->type = typ;
-
-            expect_keyword(";");
-
-            vec_push(environment->globals, node);
+        if (gvar != NULL) {
+            type_array(&gvar->type);
+            gvar->rhs = consume_keyword("=") ? rhs_expr() : NULL;
+            vec_push(environment->globals, gvar);
         }
+        expect_keyword(";");
         return;
     }
+
     Type *typ = type();
-    Token *tk = expect(TK_IDT);
+    tk = expect(TK_IDT);
     if (consume_keyword("(")) {
         locals = vec_new();
         Func *f = func(typ, tk);
@@ -146,23 +129,58 @@ Func *func(Type *typ, Token *name) {
     return func;
 }
 
-Struct *struct_decl(Token *id) {
-    Struct *s = calloc(1, sizeof(Struct));
-    s->name = id->str;
-    s->fields = vec_new();
-    s->loc = id->loc;
+Struct *struct_sig(Location *start) {
+    Token *strc_id = consume(TK_IDT);
+    Vec *fields = NULL;
+    if (consume_keyword("{")) {
+        fields = vec_new();
+        while (!consume_keyword("}")) {
+            vec_push(fields, var_decl());
+            expect_keyword(";");
+        }
+    }
 
-    expect_keyword("{");
-    locals = vec_new();
-    for (locals = vec_new(); !consume_keyword("}"); expect_keyword(";"))
-        vec_push(s->fields, var_decl());
+    if (strc_id == NULL && fields == NULL)
+        error_loc(start, "[parse] invalid struct statement");
 
-    return s;
+    Struct *strc = calloc(1, sizeof(Struct));
+    strc->name = (strc_id == NULL) ? NULL : strc_id->str;
+    strc->fields = fields;
+    strc->loc = start;
+    return strc;
+}
+
+// 'struct' . [struct_id]? ('{' [var_decl]* '}')? [ident]?
+Node *parse_struct(Node_kind kind, Location *start) {
+    Struct *sig = struct_sig(start);
+    Token *var_id = consume(TK_IDT);
+
+    Type *typ;
+    if (sig->fields == NULL)
+        typ = find_struct(sig->name);
+    else {
+        typ = calloc(1, sizeof(Type));
+        typ->ty = TY_STRUCT;
+        typ->strct = sig;
+    }
+
+    if (typ != NULL && typ->strct->name != NULL)
+        vec_push(environment->structs, typ->strct);
+
+    if (var_id == NULL)
+        return NULL;
+
+    Node *ret = mknode(kind, start);
+    ret->name = var_id->str;
+    ret->type = typ;
+    ret->len = strlen(var_id->str);
+    return ret;
 }
 
 Node *var_decl() {
     Type *typ = type();
     Token *tk = expect(TK_IDT);
+
     type_array(&typ);
     return push_lvar(typ, tk);
 }
@@ -189,6 +207,7 @@ Vec *params() {
 
 Vec *block() {
     int revert_locals_len = vec_len(locals);
+    int revert_structs_len = vec_len(environment->structs);
 
     Vec *vec = vec_new();
     expect_keyword("{");
@@ -197,6 +216,8 @@ Vec *block() {
 
     while (vec_len(locals) > revert_locals_len)
         vec_pop(locals);
+    while (vec_len(environment->structs) > revert_structs_len)
+        vec_pop(environment->structs);
 
     return vec;
 }
@@ -585,8 +606,9 @@ Type *consume_type_identifier() {
 }
 
 Type *consume_type_pre() {
+    Token *tk;
     Type *typ;
-    if (consume_keyword("struct")) {
+    if ((tk = consume_keyword("struct"))) {
         Token *strc_id = expect(TK_IDT);
         typ = find_struct(strc_id->str);
     } else
