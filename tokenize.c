@@ -20,10 +20,8 @@ void skip_line(char **p) {
 }
 
 void skip_char(char **p, char ch) {
-    if (ch == '\n')
-        skip_line(p);
-    else
-        skip_column(p, 1);
+    if (ch == '\n') skip_line(p);
+    else skip_column(p, 1);
 }
 
 Token *new_token(Token_kind kind, char *str, int len) {
@@ -74,7 +72,7 @@ void tokenize(char *p) {
     loc_line = 1;
     loc_column = 1;
 
-    Vec *vec = vec_new();
+    tokens = vec_new();
 
     while (*p) {
         if (isspace(*p)) {
@@ -82,15 +80,15 @@ void tokenize(char *p) {
             continue;
         }
 
-        if (!memcmp(p, "//", 2)) {
+        if (!strncmp(p, "//", 2)) {
             while (*p != '\n') skip_column(&p, 1);
             skip_line(&p);
             continue;
         }
 
-        if (!memcmp(p, "/*", 2)) {
+        if (!strncmp(p, "/*", 2)) {
             skip_column(&p, 2);
-            while (p && memcmp(p, "*/", 2))
+            while (*p && strncmp(p, "*/", 2))
                 skip_char(&p, *p);
             if (!*p)
                 error_loc2(loc_line, loc_column, "Closing comment \"*/\" expected");
@@ -123,7 +121,7 @@ void tokenize(char *p) {
             char *content = strbld_build(sb);
             int len = strlen(content);
             vec_push(environment->string_literals, content);
-            vec_push(vec, new_token(TK_STRING, content, len));
+            vec_push(tokens, new_token(TK_STRING, content, len));
 
             skip_column(&p, 1); // '"'
             continue;
@@ -132,27 +130,21 @@ void tokenize(char *p) {
         if (*p == '\'') {
             Token *tk = new_token(TK_CHAR, NULL, 0);
             skip_column(&p, 1); // '\''
-            char ch;
             if (*(p+1) && *p == '\\') {
                 skip_column(&p, 1); // '\\'
-                ch = *p == 'n' ? '\n'
-                   : *p == 'r' ? '\r'
-                   : *p == '0' ? '\0'
-                   : *p == '\'' ? '\''
-                   : *p;
-            } else if (*p)
-                ch = *p;
-            else
-                error_loc2(loc_line, loc_column, "[parse] unsupported character");
+                tk->val = *p == 'n' ? '\n'
+                        : *p == 'r' ? '\r'
+                        : *p == '0' ? '\0'
+                        : *p == '\'' ? '\''
+                        : *p;
+            } else if (*p) tk->val = *p;
+            else error_loc2(loc_line, loc_column, "[parse] unsupported character");
 
             skip_char(&p, *p); // content
-
             if (*p != '\'')
                 error_loc2(loc_line, loc_column, "[parse] Closing single quote \"'\" expected");
             skip_char(&p, *p); // '\''
-
-            tk->val = ch;
-            vec_push(vec, tk);
+            vec_push(tokens, tk);
             continue;
         }
 
@@ -160,7 +152,7 @@ void tokenize(char *p) {
         if (op != NULL) {
             int tlen = strlen(op);
             Token *token = new_token(TK_KWD, p, tlen);
-            vec_push(vec, token);
+            vec_push(tokens, token);
             skip_column(&p, tlen);
             continue;
         }
@@ -169,7 +161,7 @@ void tokenize(char *p) {
             Token *tk = new_token(TK_NUM, p, 0);
             char *q = p;
             tk->val = strtol(q, &q, 10);
-            vec_push(vec, tk);
+            vec_push(tokens, tk);
             skip_column(&p, (q - p));
             continue;
         }
@@ -179,20 +171,18 @@ void tokenize(char *p) {
         int len = q - p;
         Token *kwd = mem_kwd(p, len);
         if (kwd != NULL) {
-            vec_push(vec, kwd);
+            vec_push(tokens, kwd);
             skip_column(&p, len);
             continue;
         }
 
         if (len > 0) {
-            vec_push(vec, new_token(TK_IDT, p, q - p));
+            vec_push(tokens, new_token(TK_IDT, p, q - p));
             skip_column(&p, q - p);
             continue;
         }
 
         error_loc2(loc_line, loc_column, "an unknown character was found");
     }
-
-    tokens = vec;
 }
 

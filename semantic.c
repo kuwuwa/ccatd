@@ -271,7 +271,7 @@ void sema_expr(Node* node) {
         Node *resolved = find_lvar_sema(node);
 
         if (resolved == NULL)
-            error_loc(node->loc, "undefined variable");
+            error_loc(node->loc, "[semantic] undefined variable");
         node->type = resolved->type;
         return;
     }
