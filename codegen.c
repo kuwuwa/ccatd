@@ -137,11 +137,11 @@ Node *gen_const_calc(Node *node) {
             }
 
             if (node->lhs->kind == ND_ADD) {
-                Node *new_rhs = new_node_num(node->lhs->rhs->val + node->rhs->val, node->loc);
+                Node *new_rhs = mknum(node->lhs->rhs->val + node->rhs->val, node->loc);
                 node->lhs = node->lhs->lhs;
                 node->rhs = new_rhs;
             } else if (node->lhs->kind == ND_SUB) {
-                Node *new_rhs = new_node_num(-node->lhs->rhs->val + node->rhs->val, node->loc);
+                Node *new_rhs = mknum(-node->lhs->rhs->val + node->rhs->val, node->loc);
                 node->lhs = node->lhs->lhs;
                 node->rhs = new_rhs;
             }
@@ -158,11 +158,11 @@ Node *gen_const_calc(Node *node) {
             // is_pointer(node->lhs->type) && !is_pointer(node->rhs->type)
 
             if (node->lhs->kind == ND_ADD) {
-                Node *new_rhs = new_node_num(node->lhs->rhs->val - node->rhs->val, node->loc);
+                Node *new_rhs = mknum(node->lhs->rhs->val - node->rhs->val, node->loc);
                 node->lhs = node->lhs->lhs;
                 node->rhs = new_rhs;
             } else if (node->lhs->kind == ND_SUB) {
-                Node *new_rhs = new_node_num(-node->lhs->rhs->val - node->rhs->val, node->loc);
+                Node *new_rhs = mknum(-node->lhs->rhs->val - node->rhs->val, node->loc);
                 node->lhs = node->lhs->lhs;
                 node->rhs = new_rhs;
             }

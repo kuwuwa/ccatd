@@ -173,7 +173,7 @@ Vec *locals;
 
 void parse();
 
-Node *new_node_num(int v, Location *loc);
+Node *mknum(int v, Location *loc);
 
 // type
 

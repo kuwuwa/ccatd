@@ -90,11 +90,12 @@ void tokenize(char *p) {
         }
 
         if (!memcmp(p, "/*", 2)) {
+            skip_column(&p, 2);
             while (p && memcmp(p, "*/", 2))
                 skip_char(&p, *p);
-            if (!*p) {
+            if (!*p)
                 error_loc2(loc_line, loc_column, "Closing comment \"*/\" expected");
-            }
+
             skip_column(&p, 2); // "*/"
             continue;
         }
