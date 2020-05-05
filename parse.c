@@ -12,9 +12,11 @@ int index = 0;
 void toplevel();
 Func *func(Type *typ, Token *name);
 Node *parse_struct(Node_kind kind, Location *loc);
+Type *struct_pre(Location *loc);
 Node *var_decl();
 Type *type();
 void type_array(Type**);
+void type_pointer(Type**);
 Vec *params();
 Node *stmt();
 Vec *block();
@@ -47,10 +49,11 @@ Token *lookahead(Token_kind kind);
 Token *lookahead_keyword(char *str);
 Token *consume(Token_kind kind);
 Token *consume_keyword(char *str);
+Token *consume_identifier();
 Token *expect(Token_kind kind);
 Token *expect_keyword(char *str);
 Token *lookahead_type(char *str);
-Token *lookahead_var_decl();
+bool lookahead_var_decl();
 Type *consume_type_identifier();
 Type *consume_type_pre();
 
@@ -65,6 +68,7 @@ Node *mknum(int v, Location *loc);
 Node *find_var(Token* token);
 Node *push_lvar(Type* typ, Token* token);
 Type *find_struct(char *name);
+Type *lookup_alias(char *alias);
 
 // Parse
 
@@ -76,6 +80,23 @@ void parse() {
 
 void toplevel() {
     Token *tk;
+    if ((tk = consume_keyword("typedef"))) {
+        Type *typ = consume_keyword("struct")
+            ? struct_pre(tk->loc)
+            : consume_type_pre();
+
+        if (typ == NULL)
+            error_loc(tk->loc, "[parse] type expected");
+
+        Token *id = expect(TK_IDT);
+        expect_keyword(";");
+
+        Alias *alias = calloc(1, sizeof(Alias));
+        alias->name = id->str;
+        alias->type = typ;
+        vec_push(environment->aliases, alias);
+        return;
+    }
     if ((tk = consume_keyword("struct"))) {
         locals = vec_new();
         Node *gvar = parse_struct(ND_GVAR, tk->loc);
@@ -129,7 +150,7 @@ Func *func(Type *typ, Token *name) {
     return func;
 }
 
-Struct *struct_sig(Location *start) {
+Type *struct_pre(Location *start) {
     Token *strc_id = consume(TK_IDT);
     Vec *fields = NULL;
     if (consume_keyword("{")) {
@@ -147,33 +168,39 @@ Struct *struct_sig(Location *start) {
     strc->name = (strc_id == NULL) ? NULL : strc_id->str;
     strc->fields = fields;
     strc->loc = start;
-    return strc;
-}
-
-// 'struct' . [struct_id]? ('{' [var_decl]* '}')? [ident]?
-Node *parse_struct(Node_kind kind, Location *start) {
-    Struct *sig = struct_sig(start);
-    Token *var_id = consume(TK_IDT);
 
     Type *typ;
-    if (sig->fields == NULL)
-        typ = find_struct(sig->name);
+    if (strc->fields == NULL)
+        typ = find_struct(strc->name);
     else {
         typ = calloc(1, sizeof(Type));
         typ->ty = TY_STRUCT;
-        typ->strct = sig;
+        typ->strct = strc;
     }
 
     if (typ != NULL && typ->strct->name != NULL)
         vec_push(environment->structs, typ->strct);
 
-    if (var_id == NULL)
+    type_pointer(&typ);
+    return typ;
+}
+
+// 'struct' . [struct_id]? ('{' [var_decl]* '}')? [ident]?
+Node *parse_struct(Node_kind kind, Location *start) {
+    Type *typ = struct_pre(start);
+
+    Token *id = consume(TK_IDT);
+
+    if (typ == NULL || (id == NULL && typ->ty == TY_PTR))
+        error_loc(start, "[parse] invalid struct declaration");
+
+    if (id == NULL)
         return NULL;
 
     Node *ret = mknode(kind, start);
-    ret->name = var_id->str;
+    ret->name = id->str;
     ret->type = typ;
-    ret->len = strlen(var_id->str);
+    ret->len = strlen(id->str);
     return ret;
 }
 
@@ -279,6 +306,11 @@ Node *stmt() {
         expect_keyword(";");
     }
     return node;
+}
+
+void type_pointer(Type **t) {
+    while (consume_keyword("*"))
+        *t = ptr_of(*t);
 }
 
 void type_array(Type **t) {
@@ -545,7 +577,7 @@ Token *lookahead(Token_kind kind) {
 }
 
 Token *lookahead_keyword(char *str) {
-    Token *tk = lookahead_any(TK_KWD);
+    Token *tk = lookahead(TK_KWD);
     return (tk != NULL && !strcmp(str, tk->str)) ? tk : NULL;
 }
 
@@ -564,6 +596,16 @@ Token *consume_keyword(char *str) {
     index++;
     return tk;
 }
+
+Token *consume_identifier() {
+    Token *tk = lookahead(TK_IDT);
+    Type *typ = lookup_alias(tk->str);
+    if (typ == NULL) {
+        index++;
+        return tk;
+    }
+    return NULL;
+} 
 
 Token *expect(Token_kind kind) {
     Token *tk = lookahead_any();
@@ -586,12 +628,13 @@ Token *lookahead_type(char* str) {
     return (tk != NULL && !strcmp(str, tk->str)) ? tk : NULL;
 }
 
-Token *lookahead_var_decl() {
+bool lookahead_var_decl() {
     Token *tk;
-    return (tk = lookahead_keyword("struct")) ? tk
-         : (tk = lookahead_keyword("int")) ? tk
-         : (tk = lookahead_keyword("char")) ? tk
-         : NULL;
+    return lookahead_keyword("struct") != NULL
+        || lookahead_type("int") != NULL
+        || lookahead_type("char")
+        || (((tk = lookahead(TK_IDT)) != NULL)
+                && lookup_alias(lookahead(TK_IDT)->str) != NULL);
 }
 
 Type *consume_type_identifier() {
@@ -602,7 +645,12 @@ Type *consume_type_identifier() {
         index++;
         return type_char;
     }
-    return NULL;
+
+    Token *id = lookahead(TK_IDT);
+    Type *typ = lookup_alias(id->str);
+    if (typ != NULL)
+        index++;
+    return typ;
 }
 
 Type *consume_type_pre() {
@@ -617,9 +665,7 @@ Type *consume_type_pre() {
     if (typ == NULL)
         return NULL;
 
-    while (consume_keyword("*"))
-        typ = ptr_of(typ);
-
+    type_pointer(&typ);
     return typ;
 }
 
@@ -706,6 +752,16 @@ Type *find_struct(char *name) {
             typ->strct = strc;
             return typ;
         }
+    }
+    return NULL;
+}
+
+Type *lookup_alias(char *str) {
+    int len = vec_len(environment->aliases);
+    for (int i = 0; i < len; i++) {
+        Alias *al = vec_at(environment->aliases, i);
+        if (!strcmp(al->name, str))
+            return al->type;
     }
     return NULL;
 }

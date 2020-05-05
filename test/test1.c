@@ -99,9 +99,8 @@ int main() {
         assert_equals(a, 10);
     }
     { // for1
-        int a;
         int b = 1;
-        for (a = 1; a <= 5; a = a+1) b = b * a;
+        for (int a = 1; a <= 5; a = a+1) b = b * a;
         assert_equals(b, 120);
     }
     { // call1

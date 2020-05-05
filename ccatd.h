@@ -28,6 +28,9 @@ struct Struct;
 typedef struct Type Type;
 struct Type;
 
+typedef struct Alias Alias;
+struct Alias;
+
 typedef struct String String;
 struct String;
 
@@ -160,11 +163,17 @@ struct Struct {
     Location *loc;
 };
 
+struct Alias {
+    char *name;
+    Type *type;
+};
+
 struct Environment {
     Vec *functions;
     Vec *globals;
     Vec *string_literals;
     Vec *structs;
+    Vec *aliases;
 };
 
 Environment *environment;

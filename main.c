@@ -44,6 +44,7 @@ void init() {
     environment->globals = vec_new();
     environment->string_literals = vec_new();
     environment->structs = vec_new();
+    environment->aliases = vec_new();
 
     func_env = vec_new();
     push_function(

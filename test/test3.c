@@ -16,7 +16,9 @@ int bar_total(struct Bar *bar) {
     return tot;
 }
 
-struct Foo global_foo_arr[20];
+typedef struct Foo Foo;
+
+Foo global_foo_arr[20];
 
 int main() {
     assert_equals(sizeof(global_foo_arr), 240);

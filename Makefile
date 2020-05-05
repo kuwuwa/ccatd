@@ -8,6 +8,7 @@ OBJS := $(SRCS:.c=.o)
 
 ccatd: $(OBJS)
 	$(CC) -o ccatd $(OBJS) $(LDFLAGS)
+	ctags -R
 
 test: ccatd
 	bash ./test.bash
