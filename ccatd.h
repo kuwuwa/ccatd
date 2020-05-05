@@ -70,12 +70,6 @@ typedef enum {
     TK_EOF,
     TK_CHAR,
     TK_STRING,
-
-    TK_RETURN,
-    TK_IF,
-    TK_ELSE,
-    TK_WHILE,
-    TK_FOR,
 } Token_kind;
 
 struct Token {
@@ -86,9 +80,9 @@ struct Token {
     Location *loc;
 };
 
-void tokenize(char *p);
-
 extern Vec *tokens;
+
+void tokenize(char *p);
 
 // parse
 
