@@ -23,7 +23,7 @@ Foo global_foo_arr[20];
 int main() {
     assert_equals(sizeof(global_foo_arr), 240);
 
-    struct Foo foo;
+    Foo foo;
     assert_equals(sizeof(foo), 12);
 
     struct Bar bar;
@@ -38,7 +38,7 @@ int main() {
     (bar.b)[3] = 35;
     assert_equals(bar.b[3], 35);
 
-    struct Foo* foo_ptr = &foo;
+    Foo* foo_ptr = &foo;
     assert_equals(foo_ptr->a, 10);
     foo_ptr->a = 20;
     assert_equals(foo.a, 20);

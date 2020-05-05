@@ -19,6 +19,9 @@ struct Vector;
 typedef struct StringBuilder StringBuilder;
 struct StringBuilder;
 
+typedef struct Map Map;
+struct Map;
+
 typedef struct Func Func;
 struct Func;
 
@@ -27,9 +30,6 @@ struct Struct;
 
 typedef struct Type Type;
 struct Type;
-
-typedef struct Alias Alias;
-struct Alias;
 
 typedef struct String String;
 struct String;
@@ -49,6 +49,13 @@ StringBuilder *strbld_new();
 char *strbld_build(StringBuilder *sb);
 void strbld_append(StringBuilder *sb, char ch);
 void strbld_append_str(StringBuilder *sb, char *ch);
+
+Map *map_new();
+void map_put(Map *m, void *k, void *v);
+void *map_find(Map *m, char *k);
+Vec *map_values(Map *m);
+int map_size(Map *m);
+void *map_pop(Map *m);
 
 // util
 
@@ -142,7 +149,6 @@ struct Node {
     Vec *block;
     int val;
     char *name;
-    int len;
     Type *type;
     Location *loc;
     Token *attr;
@@ -163,17 +169,12 @@ struct Struct {
     Location *loc;
 };
 
-struct Alias {
-    char *name;
-    Type *type;
-};
-
 struct Environment {
     Vec *functions;
-    Vec *globals;
+    Map *globals;
     Vec *string_literals;
-    Vec *structs;
-    Vec *aliases;
+    Map *structs;
+    Map *aliases;
 };
 
 Environment *environment;

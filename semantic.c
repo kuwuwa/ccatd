@@ -2,6 +2,10 @@
 
 #include "ccatd.h"
 
+Vec *func_env;
+Vec *local_vars;
+int scoped_stack_space;
+int max_scoped_stack_space;
 
 void sema_globals();
 void sema_const(Node*);
@@ -18,32 +22,27 @@ bool assignable(Type*, Type*);
 bool assignable_decl(Type*, Type*);
 bool eq_type(Type*, Type*);
 
-Vec *func_env;
-Vec *local_vars;
-int scoped_stack_space;
-int max_scoped_stack_space;
-
 Node *find_lvar_sema(Node *node);
 int index_of_lvar(Node *node);
 
 Func *find_func(Node *node);
-Type *ptr_of_array(Type* typ);
 
 // ------------------------------------------------------------
 
 void sema_globals() {
-    int globals_len = vec_len(environment->globals);
+    int globals_len = map_size(environment->globals);
+    Vec *global_vals = map_values(environment->globals);
     for (int i = 0; i < globals_len; i++) {
-        Node *g = vec_at(environment->globals, i);
+        Node *g = vec_at(global_vals, i);
         for (int j = 0; j < i; j++) {
-            Node *h = vec_at(environment->globals, j);
-            if (g->len == h->len && memcmp(g->name, h->name, g->len) == 0)
+            Node *h = vec_at(map_values(environment->globals), j);
+            if (!strcmp(g->name, h->name))
                 error_loc(g->loc, "duplicate global variable found");
         }
     }
 
     for (int i = 0; i < globals_len; i++) {
-        Node *g = vec_at(environment->globals, i);
+        Node *g = vec_at(global_vals, i);
         if (g->kind != ND_GVAR)
             error_loc(g->loc, "[semantic] a global variable expected");
 
@@ -148,7 +147,7 @@ void sema_func(Func *func) {
         Node *pi = vec_at(func->params, i);
         for (int j = i+1; j < params_len; j++) {
             Node *pj = vec_at(func->params, j);
-            if (!memcmp(pi->name, pj->name, pi->len)) {
+            if (!strcmp(pi->name, pj->name)) {
                 error_loc(pi->loc, "%s: duplicate parameter `%s'", func->name, pi->name);
             }
         }
@@ -529,6 +528,8 @@ bool eq_type(Type* t1, Type* t2) {
         return eq_type(t1->ptr_to, t2->ptr_to);
     } else if (t1->ty == TY_ARRAY && t2->ty == TY_ARRAY) {
         return eq_type(t1->ptr_to, t2->ptr_to);
+    } else if (t1->ty == TY_STRUCT && t2->ty == TY_STRUCT) {
+        return t1 == t2;
     } else
         return t1->ty == t2->ty;
 }
@@ -543,8 +544,7 @@ int index_of_lvar(Node *target) {
     int ret = local_vars_len;
     for (int i = 0; i < local_vars_len; i++) {
         Node *var = vec_at(local_vars, i);
-        if (var->len == target->len &&
-                memcmp(var->name, target->name, var->len) == 0)
+        if (!strcmp(var->name, target->name))
             ret = i;
     }
     return ret;
@@ -554,14 +554,8 @@ Func *find_func(Node *node) {
     int funcs_len = vec_len(func_env);
     for (int i = 0; i < funcs_len; i++) {
         Func *func = vec_at(func_env, i);
-        if (strlen(func->name) == strlen(node->name) && !strcmp(func->name, node->name))
+        if (!strcmp(func->name, node->name))
             return func;
     }
     return NULL;
-}
-
-Type *ptr_of_array(Type *typ) {
-    if (typ->ty == TY_ARRAY)
-        return ptr_of(typ->ptr_to);
-    return typ;
 }

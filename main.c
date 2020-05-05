@@ -41,10 +41,10 @@ void init() {
 
     environment = calloc(1, sizeof(Environment));
     environment->functions = vec_new();
-    environment->globals = vec_new();
+    environment->globals = map_new();
     environment->string_literals = vec_new();
-    environment->structs = vec_new();
-    environment->aliases = vec_new();
+    environment->structs = map_new();
+    environment->aliases = map_new();
 
     func_env = vec_new();
     push_function(
