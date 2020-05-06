@@ -57,6 +57,16 @@ Vec *map_values(Map *m);
 int map_size(Map *m);
 void *map_pop(Map *m);
 
+struct Environment {
+    Map *map;
+    Environment *next;
+};
+
+Environment *env_new(Environment *next);
+Environment *env_next(Environment *e);
+void env_push(Environment *e, char *k, void *v);
+void *env_find(Environment *e, char *k);
+
 // util
 
 void error(char *fmt, ...);
@@ -172,12 +182,8 @@ struct Struct {
 extern Vec *functions;
 extern Map *global_vars;
 extern Vec *string_literals;
-extern Map *structs;
-extern Map *aliases;
 
 Environment *environment;
-
-extern Vec *locals;
 
 void parse();
 

@@ -6,12 +6,6 @@
 
 #include "ccatd.h"
 
-Vec *functions;
-Map *global_vars;
-Vec *string_literals;
-Map *structs;
-Map *aliases;
-
 void append_type_param(Vec *params, Type* t) {
     Node *node = (Node*) calloc(1, sizeof(Node));
     node->type = t;
@@ -48,8 +42,6 @@ void init() {
     functions = vec_new();
     global_vars = map_new();
     string_literals = vec_new();
-    structs = map_new();
-    aliases = map_new();
 
     func_env = vec_new();
     push_function(

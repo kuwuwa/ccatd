@@ -7,6 +7,7 @@
 int loc_line = 1;
 int loc_column = 1;
 Vec *tokens;
+Vec *string_literals;
 
 void skip_column(char **p, int step) {
     *p += step;

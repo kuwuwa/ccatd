@@ -117,3 +117,28 @@ void *map_pop(Map *m) {
     vec_pop(m->keys);
     return vec_pop(m->values);
 }
+
+// Environment
+
+Environment *env_new(Environment *next) {
+    Environment *e = calloc(1, sizeof(Environment));
+    e->map = map_new();
+    e->next = next;
+    return e;
+}
+
+void env_push(Environment *e, char *k, void *v) {
+    map_put(e->map, k, v);
+}
+
+void *env_find(Environment *e, char *k) {
+    void *v = map_find(e->map, k);
+    return v != NULL ? v
+         : e->next == NULL ? NULL
+         : env_find(e->next, k);
+}
+
+Environment *env_next(Environment *e) {
+    return e->next;
+}
+

@@ -3,7 +3,7 @@
 #include "ccatd.h"
 
 Vec *func_env;
-Vec *local_vars;
+Environment *local_vars;
 int scoped_stack_space;
 int max_scoped_stack_space;
 
@@ -13,7 +13,7 @@ void sema_const_aux(Node*);
 void sema_const_array(Type*, Node*);
 void sema_func(Func*);
 void sema_block(Vec*, Func*);
-void sema_stmt(Node*, Func*, int scope_start);
+void sema_stmt(Node*, Func*);
 void sema_expr(Node*);
 void sema_lval(Node*);
 void sema_array(Type*, Node*);
@@ -21,9 +21,6 @@ void sema_array(Type*, Node*);
 bool assignable(Type*, Type*);
 bool assignable_decl(Type*, Type*);
 bool eq_type(Type*, Type*);
-
-Node *find_lvar_sema(Node *node);
-int index_of_lvar(Node *node);
 
 Func *find_func(Node *node);
 
@@ -156,11 +153,11 @@ void sema_func(Func *func) {
     vec_push(func_env, func);
 
     // block
-    local_vars = vec_new();
+    local_vars = env_new(NULL);
     for (int i = 0; i < params_len; i++) {
         Node* param = vec_at(func->params, i);
         param->val = 8 * (i + 1);
-        vec_push(local_vars, param);
+        env_push(local_vars, param->name, param);
     }
     max_scoped_stack_space = scoped_stack_space = 8 * params_len;
 
@@ -169,23 +166,21 @@ void sema_func(Func *func) {
 }
 
 void sema_block(Vec *block, Func *func) {
-    int scope_start = vec_len(local_vars);
-    int block_len = vec_len(block);
-    for (int i = 0; i < block_len; i++) {
-        Node *n = vec_at(block, i);
-        sema_stmt(n, func, scope_start);
-    }
+    local_vars = env_new(local_vars);
+    int revert_scoped_stack_space = scoped_stack_space;
 
-    while (vec_len(local_vars) > scope_start) {
-        Node *var = vec_pop(local_vars);
-        scoped_stack_space -= type_size(var->type);
-    }
+    int block_len = vec_len(block);
+    for (int i = 0; i < block_len; i++)
+        sema_stmt(vec_at(block, i), func);
+
+    local_vars = env_next(local_vars);
+    scoped_stack_space = revert_scoped_stack_space;
 }
 
-void sema_stmt(Node *node, Func *func, int scope_start) {
+void sema_stmt(Node *node, Func *func) {
     if (node->kind == ND_VARDECL) {
-        int idx = index_of_lvar(node->lhs);
-        if (scope_start <= idx && idx < vec_len(local_vars))
+        Node *lvar = map_find(local_vars->map, node->lhs->name);
+        if (lvar != NULL)
             error_loc(node->loc, "[semantic] duplicate variable declaration");
 
         if (node->rhs != NULL) {
@@ -205,7 +200,7 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
 
         scoped_stack_space += type_size(node->lhs->type);
         node->lhs->val = scoped_stack_space;
-        vec_push(local_vars, node->lhs);
+        env_push(local_vars, node->lhs->name, node->lhs);
         max_scoped_stack_space = scoped_stack_space > max_scoped_stack_space
             ? scoped_stack_space
             : max_scoped_stack_space;
@@ -220,14 +215,14 @@ void sema_stmt(Node *node, Func *func, int scope_start) {
     }
     if (node->kind == ND_IF) {
         sema_expr(node->cond);
-        sema_stmt(node->lhs, func, scope_start);
+        sema_stmt(node->lhs, func);
         if (node->rhs != NULL)
-            sema_stmt(node->rhs, func, scope_start);
+            sema_stmt(node->rhs, func);
         return;
     }
     if (node->kind == ND_WHILE) {
         sema_expr(node->cond);
-        sema_stmt(node->body, func, scope_start);
+        sema_stmt(node->body, func);
         return;
     }
     if (node->kind == ND_FOR) {
@@ -268,7 +263,7 @@ void sema_expr(Node* node) {
     }
     // ND_LVAR,
     if (node->kind == ND_LVAR) {
-        Node *resolved = find_lvar_sema(node);
+        Node *resolved = env_find(local_vars, node->name);
 
         if (resolved == NULL)
             error_loc(node->loc, "[semantic] undefined variable");
@@ -468,13 +463,13 @@ void sema_expr(Node* node) {
             error_loc(node->loc, "[semantic] type mismatch in an AND expression");
     }
     if (node->kind == ND_LSH) {
-        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
+        if ((node->type = lty) != NULL)
             return;
         else
             error_loc(node->loc, "[semantic] type mismatch in a left shift expression");
     }
     if (node->kind == ND_RSH) {
-        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
+        if ((node->type = lty) != NULL)
             return;
         else
             error_loc(node->loc, "[semantic] type mismatch in a right shift expression");
@@ -532,22 +527,6 @@ bool eq_type(Type* t1, Type* t2) {
         return t1 == t2;
     } else
         return t1->ty == t2->ty;
-}
-
-Node *find_lvar_sema(Node *target) {
-    int idx = index_of_lvar(target);
-    return (0 <= idx && idx < vec_len(local_vars)) ? vec_at(local_vars, idx) : NULL;
-}
-
-int index_of_lvar(Node *target) {
-    int local_vars_len = vec_len(local_vars);
-    int ret = local_vars_len;
-    for (int i = 0; i < local_vars_len; i++) {
-        Node *var = vec_at(local_vars, i);
-        if (!strcmp(var->name, target->name))
-            ret = i;
-    }
-    return ret;
 }
 
 Func *find_func(Node *node) {

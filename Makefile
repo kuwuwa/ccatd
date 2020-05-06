@@ -20,4 +20,6 @@ b: build
 
 c: clean
 
+t: test
+
 .PHONY: test clean

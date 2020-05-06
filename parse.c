@@ -7,8 +7,14 @@
 
 #include "ccatd.h"
 
+// Prototype declarations
+
 int index = 0;
-Vec *locals;
+Vec *functions;
+Map *global_vars;
+Environment *locals;
+Environment *structs;
+Environment *aliases;
 
 void toplevel();
 Func *func(Type *typ, Token *name);
@@ -64,22 +70,24 @@ Node *mknode(Node_kind kind, Location *loc);
 Node *binop(Node_kind kind, Node *lhs, Node *rhs, Location *loc);
 Node *mknum(int v, Location *loc);
 
-// Environment helpers
+// Global helpers
 
 Node *find_var(Token* token);
 Node *push_lvar(Type* typ, Token* token);
-Type *find_struct(char *name);
 
 // Parse
 
 void parse() {
+    structs = env_new(NULL);
+    aliases = env_new(NULL);
+
     int len = vec_len(tokens);
     while (index < len)
         toplevel();
 }
 
 void toplevel() {
-    locals = vec_new();
+    locals = env_new(NULL);
     Token *tk;
     if ((tk = consume_keyword("typedef"))) {
         Type *typ = consume_keyword("struct")
@@ -92,7 +100,7 @@ void toplevel() {
         Token *id = expect(TK_IDT);
         expect_keyword(";");
 
-        map_put(aliases, id->str, typ);
+        env_push(aliases, id->str, typ);
         return;
     }
     if ((tk = consume_keyword("struct"))) {
@@ -162,7 +170,7 @@ Type *struct_pre(Location *start) {
 
     Type *typ;
     if (strc->fields == NULL)
-        typ = map_find(structs, strc->name);
+        typ = env_find(structs, strc->name);
     else {
         typ = calloc(1, sizeof(Type));
         typ->ty = TY_STRUCT;
@@ -170,7 +178,7 @@ Type *struct_pre(Location *start) {
     }
 
     if (typ != NULL && typ->strct->name != NULL)
-        map_put(structs, typ->strct->name, typ);
+        env_push(structs, typ->strct->name, typ);
 
     type_pointer(&typ);
     return typ;
@@ -221,19 +229,16 @@ Vec *params() {
 }
 
 Vec *block() {
-    int revert_locals_len = vec_len(locals);
-    int revert_structs_len = map_size(structs);
+    locals = env_new(locals);
+    structs = env_new(structs);
 
     Vec *vec = vec_new();
     expect_keyword("{");
     while (!consume_keyword("}"))
         vec_push(vec, stmt());
 
-    while (vec_len(locals) > revert_locals_len)
-        vec_pop(locals);
-    while (map_size(structs) > revert_structs_len)
-        map_pop(structs);
-
+    locals = env_next(locals);
+    structs = env_next(structs);
     return vec;
 }
 
@@ -257,7 +262,7 @@ Node *stmt() {
         expect_keyword(")");
         node->body = stmt();
     } else if ((tk = consume_keyword("for"))) {
-        int revert_locals_len = vec_len(locals);
+        locals = env_new(locals);
         node = mknode(ND_FOR, tk->loc);
         expect_keyword("(");
         if (!consume_keyword(";")) {
@@ -278,7 +283,7 @@ Node *stmt() {
             expect_keyword(")");
         }
         node->body = stmt();
-        while (vec_len(locals) > revert_locals_len)vec_pop(locals);
+        locals = env_next(locals);
     } else if (lookahead_keyword("{")) {
         Vec *vec = block();
         node = mknode(ND_BLOCK, NULL);
@@ -584,7 +589,7 @@ Token *consume_keyword(char *str) {
 
 Token *consume_identifier() {
     Token *tk = lookahead(TK_IDT);
-    Type *typ = map_find(aliases, tk->str);
+    Type *typ = env_find(aliases, tk->str);
     if (typ == NULL) {
         index++;
         return tk;
@@ -619,7 +624,7 @@ bool lookahead_var_decl() {
         || lookahead_type("int") != NULL
         || lookahead_type("char")
         || (((tk = lookahead(TK_IDT)) != NULL)
-                && map_find(aliases, tk->str) != NULL);
+                && env_find(aliases, tk->str) != NULL);
 }
 
 Type *consume_type_identifier() {
@@ -632,7 +637,7 @@ Type *consume_type_identifier() {
     }
 
     Token *id = lookahead(TK_IDT);
-    Type *typ = map_find(aliases, id->str);
+    Type *typ = env_find(aliases, id->str);
     if (typ != NULL)
         index++;
     return typ;
@@ -643,7 +648,7 @@ Type *consume_type_pre() {
     Type *typ;
     if ((tk = consume_keyword("struct"))) {
         Token *strc_id = expect(TK_IDT);
-        typ = map_find(structs, strc_id->str);
+        typ = env_find(structs, strc_id->str);
     } else
         typ = consume_type_identifier();
 
@@ -682,21 +687,11 @@ Node *mknum(int v, Location *loc) {
 
 // Environment helpers
 
-Node *find_lvar(Token *token) {
-    int locals_len = vec_len(locals);
-    for (int i = 0; i < locals_len; i++) {
-        Node *var = vec_at(locals, i);
-        if (!strcmp(token->str, var->name))
-            return var;
-    }
-    return NULL;
-}
-
 Node *find_var(Token *token) {
     if (token->kind != TK_IDT)
         error("find_var: variable expected\n");
 
-    Node *lvar = find_lvar(token);
+    Node *lvar = env_find(locals, token->str);
     if (lvar != NULL)
         return lvar;
 
@@ -704,13 +699,13 @@ Node *find_var(Token *token) {
 }
 
 Node *push_lvar(Type *typ, Token *tk) {
-    if (find_lvar(tk) != NULL)
+    if (env_find(locals, tk->str) != NULL)
         error_loc(tk->loc, "[parse] duplicate variable");
 
     Node *var = mknode(ND_LVAR, tk->loc);
     var->name = tk->str;
     var->type = typ;
 
-    vec_push(locals, var);
+    env_push(locals, var->name, var);
     return var;
 }
