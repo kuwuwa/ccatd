@@ -99,23 +99,10 @@ void map_put(Map *m, void *k, void *v) {
 }
 
 void *map_find(Map *m, char *k) {
-    for (int i = 0; i < vec_len(m->keys); i++)
+    for (int i = vec_len(m->keys)-1; i >= 0; i--)
         if (!strcmp((char*)(m->keys->data[i]), k))
             return m->values->data[i];
     return NULL;
-}
-
-void map_remove(Map *m, char *k) {
-    for (int i = 0; i < vec_len(m->keys); i++) {
-        if (!strcmp((char*)(m->keys->data[i]), k)) {
-            for (int j = i; j < vec_len(m->keys)-1; j++) {
-                m->keys->data[j] = m->keys->data[j+1];
-                m->values->data[j] = m->values->data[j+1];
-            }
-            vec_pop(m->keys);
-            vec_pop(m->values);
-        }
-    }
 }
 
 Vec *map_values(Map *m) {

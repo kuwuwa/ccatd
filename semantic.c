@@ -30,12 +30,12 @@ Func *find_func(Node *node);
 // ------------------------------------------------------------
 
 void sema_globals() {
-    int globals_len = map_size(environment->globals);
-    Vec *global_vals = map_values(environment->globals);
+    int globals_len = map_size(global_vars);
+    Vec *global_vals = map_values(global_vars);
     for (int i = 0; i < globals_len; i++) {
         Node *g = vec_at(global_vals, i);
         for (int j = 0; j < i; j++) {
-            Node *h = vec_at(map_values(environment->globals), j);
+            Node *h = vec_at(map_values(global_vars), j);
             if (!strcmp(g->name, h->name))
                 error_loc(g->loc, "duplicate global variable found");
         }

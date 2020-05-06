@@ -169,17 +169,15 @@ struct Struct {
     Location *loc;
 };
 
-struct Environment {
-    Vec *functions;
-    Map *globals;
-    Vec *string_literals;
-    Map *structs;
-    Map *aliases;
-};
+extern Vec *functions;
+extern Map *global_vars;
+extern Vec *string_literals;
+extern Map *structs;
+extern Map *aliases;
 
 Environment *environment;
 
-Vec *locals;
+extern Vec *locals;
 
 void parse();
 

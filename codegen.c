@@ -23,14 +23,14 @@ char *word_of_type(Type*);
 
 void gen_globals() {
     printf("  .data\n");
-    for (int i = 0; i < map_size(environment->globals); i++) {
-        Node *global = vec_at(map_values(environment->globals), i);
+    for (int i = 0; i < map_size(global_vars); i++) {
+        Node *global = vec_at(map_values(global_vars), i);
 
         printf("  .globl %s\n", global->name);
     }
 
-    for (int i = 0; i < map_size(environment->globals); i++) {
-        Node *global = vec_at(map_values(environment->globals), i);
+    for (int i = 0; i < map_size(global_vars); i++) {
+        Node *global = vec_at(map_values(global_vars), i);
         printf("%s:\n", global->name);
         if (global->rhs == NULL)
             printf("  .zero %d\n", type_size(global->type));
@@ -41,8 +41,8 @@ void gen_globals() {
     }
     printf("  .text\n");
     // TODO: Don't need to generate literals used in a char array
-    for (int i = 0; i < vec_len(environment->string_literals); i++) {
-        char *str = vec_at(environment->string_literals, i);
+    for (int i = 0; i < vec_len(string_literals); i++) {
+        char *str = vec_at(string_literals, i);
         printf(".LC%d:\n", i);
         printf("  .string \"%s\"\n", escape_string(str));
     }
@@ -65,9 +65,9 @@ void gen_const(Type *typ, Node *node) {
     }
     if (node->kind == ND_STRING) {
         if (typ->ty == TY_PTR) {
-            int len = vec_len(environment->string_literals);
+            int len = vec_len(string_literals);
             for (int i = 0; i < len; i++) {
-                char *str = vec_at(environment->string_literals, i);
+                char *str = vec_at(string_literals, i);
                 if (!strcmp(str, node->name)) {
                     printf("  .quad .LC%d\n", i);
                     return;
@@ -194,8 +194,8 @@ void gen(Node *node) {
         return;
     }
     if (node->kind == ND_STRING) {
-        for (int i = 0; i < vec_len(environment->string_literals); i++) {
-            char *str = vec_at(environment->string_literals, i);
+        for (int i = 0; i < vec_len(string_literals); i++) {
+            char *str = vec_at(string_literals, i);
             if (!strcmp(node->name, str)) {
                 printf("  mov rax, OFFSET FLAT:.LC%d\n", i);
                 printf("  push rax\n");

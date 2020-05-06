@@ -6,6 +6,12 @@
 
 #include "ccatd.h"
 
+Vec *functions;
+Map *global_vars;
+Vec *string_literals;
+Map *structs;
+Map *aliases;
+
 void append_type_param(Vec *params, Type* t) {
     Node *node = (Node*) calloc(1, sizeof(Node));
     node->type = t;
@@ -39,12 +45,11 @@ void init() {
 
     // parse
 
-    environment = calloc(1, sizeof(Environment));
-    environment->functions = vec_new();
-    environment->globals = map_new();
-    environment->string_literals = vec_new();
-    environment->structs = map_new();
-    environment->aliases = map_new();
+    functions = vec_new();
+    global_vars = map_new();
+    string_literals = vec_new();
+    structs = map_new();
+    aliases = map_new();
 
     func_env = vec_new();
     push_function(
@@ -123,8 +128,8 @@ int main(int argc, char **argv) {
 
     sema_globals();
 
-    for (int i = 0; i < vec_len(environment->functions); i++) {
-        sema_func(vec_at(environment->functions, i));
+    for (int i = 0; i < vec_len(functions); i++) {
+        sema_func(vec_at(functions, i));
     }
 
     printf("  .intel_syntax noprefix\n"
@@ -132,9 +137,9 @@ int main(int argc, char **argv) {
 
     gen_globals();
 
-    int len = vec_len(environment->functions);
+    int len = vec_len(functions);
     for (int i = 0; i < len; i++) {
-        gen_func(vec_at(environment->functions, i));
+        gen_func(vec_at(functions, i));
     }
     return 0;
 }

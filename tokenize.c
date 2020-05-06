@@ -120,7 +120,7 @@ void tokenize(char *p) {
 
             char *content = strbld_build(sb);
             int len = strlen(content);
-            vec_push(environment->string_literals, content);
+            vec_push(string_literals, content);
             vec_push(tokens, new_token(TK_STRING, content, len));
 
             skip_column(&p, 1); // '"'
