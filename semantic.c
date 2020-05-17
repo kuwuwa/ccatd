@@ -3,6 +3,7 @@
 #include "ccatd.h"
 
 Vec *func_env;
+Map *global_env;
 Environment *local_vars;
 int scoped_stack_space;
 int max_scoped_stack_space;
@@ -14,9 +15,9 @@ void sema_const_array(Type*, Node*);
 void sema_func(Func*);
 void sema_block(Vec*, Func*);
 void sema_stmt(Node*, Func*);
-void sema_expr(Node*);
-void sema_lval(Node*);
-void sema_array(Type*, Node*);
+void sema_expr(Node*, Func*);
+void sema_lval(Node*, Func*);
+void sema_array(Type*, Node*, Func*);
 
 bool assignable(Type*, Type*);
 bool assignable_decl(Type*, Type*);
@@ -27,19 +28,19 @@ Func *find_func(Node *node);
 // ------------------------------------------------------------
 
 void sema_globals() {
-    int globals_len = map_size(global_vars);
-    Vec *global_vals = map_values(global_vars);
+    int globals_len = vec_len(global_vars->values);
     for (int i = 0; i < globals_len; i++) {
-        Node *g = vec_at(global_vals, i);
+        Node *g = vec_at(global_vars->values, i);
         for (int j = 0; j < i; j++) {
-            Node *h = vec_at(map_values(global_vars), j);
+            Node *h = vec_at(global_vars->values, j);
             if (!strcmp(g->name, h->name))
                 error_loc(g->loc, "duplicate global variable found");
         }
     }
 
+    global_env = map_new();
     for (int i = 0; i < globals_len; i++) {
-        Node *g = vec_at(global_vals, i);
+        Node *g = vec_at(global_vars->values, i);
         if (g->kind != ND_GVAR)
             error_loc(g->loc, "[semantic] a global variable expected");
 
@@ -48,6 +49,7 @@ void sema_globals() {
             if (!assignable(g->type, g->rhs->type))
                 error_loc(g->loc, "[semantic] type mismatch in a global variable initialization");
         }
+        map_put(global_env, g->name, g);
     }
 }
 
@@ -62,27 +64,30 @@ void sema_const(Node *global) {
 void sema_const_aux(Node *node) {
     if (node->kind == ND_NUM) {
         if (!eq_type(type_int, node->type))
-            error("[semantic] type mismatch in a global variable declaration");
+            error("[semantic] type mismatch in a global variable definition");
         return;
     }
     if (node->kind == ND_STRING) {
         if (!eq_type(type_ptr_char, node->type))
-            error("[semantic] type mismatch in a global variable initialization");
+            error("[semantic] type mismatch in a global variable definition");
         return;
     }
 
     if (node->kind == ND_ADDR) {
         Node *e = node->lhs;
-        if (e->kind != ND_GVAR)
+        if (e->kind != ND_VAR)
             error_loc(e->loc, "[semantic] a left value expected");
+        sema_const_aux(e);
 
         node->type = ptr_of(e->type);
         return;
     }
 
-    if (node->kind == ND_GVAR) {
-        if (!is_pointer_compat(node->type))
-            error_loc(node->loc, "[semantic] unsupported type of variable in a global variable initialization");
+    if (node->kind == ND_VAR) {
+        Node *resolved = map_find(global_env, node->name);
+        if (resolved == NULL)
+            error_loc(node->loc, "[semantic] undefined variable");
+        *node = *resolved;
         return;
     }
 
@@ -188,11 +193,11 @@ void sema_stmt(Node *node, Func *func) {
                 if (node->lhs->type->ptr_to->ty == TY_CHAR && node->rhs->kind == ND_STRING)
                     ;
                 else if (node->rhs->kind == ND_ARRAY)
-                    sema_array(node->lhs->type, node->rhs);
+                    sema_array(node->lhs->type, node->rhs, func);
                 else
                     error_loc(node->loc, "[semantic] unsupported array initialization");
             } else {
-                sema_expr(node->rhs);
+                sema_expr(node->rhs, func);
                 if (!assignable(node->lhs->type, node->rhs->type))
                     error_loc(node->loc, "[semantic] type mismatch in a variable declaration");
             }
@@ -209,19 +214,19 @@ void sema_stmt(Node *node, Func *func) {
         return;
     }
     if (node->kind == ND_RETURN) {
-        sema_expr(node->lhs);
+        sema_expr(node->lhs, func);
         eq_type(node->lhs->type, func->ret_type);
         return;
     }
     if (node->kind == ND_IF) {
-        sema_expr(node->cond);
+        sema_expr(node->cond, func);
         sema_stmt(node->lhs, func);
         if (node->rhs != NULL)
             sema_stmt(node->rhs, func);
         return;
     }
     if (node->kind == ND_WHILE) {
-        sema_expr(node->cond);
+        sema_expr(node->cond, func);
         sema_stmt(node->body, func);
         return;
     }
@@ -241,10 +246,10 @@ void sema_stmt(Node *node, Func *func) {
         return;
     }
 
-    sema_expr(node);
+    sema_expr(node, func);
 }
 
-void sema_expr(Node* node) {
+void sema_expr(Node* node, Func *func) {
     // ND_NUM,
     if (node->kind == ND_NUM) {
         eq_type(type_int, node->type);
@@ -261,26 +266,32 @@ void sema_expr(Node* node) {
             error_loc(node->loc, "[internal] char");
         return;
     }
-    // ND_LVAR,
-    if (node->kind == ND_LVAR) {
-        Node *resolved = env_find(local_vars, node->name);
+    // ND_VAR,
+    if (node->kind == ND_VAR) {
+        Node *resolved_local = env_find(local_vars, node->name);
+        if (resolved_local != NULL) {
+            // node->type = resolved_local->type;
+            *node = *resolved_local;
+            return;
+        }
 
-        if (resolved == NULL)
+        Node *resolved_global = map_find(func->global_vars, node->name);
+        if (resolved_global == NULL)
             error_loc(node->loc, "[semantic] undefined variable");
-        node->type = resolved->type;
+        *node = *resolved_global;
         return;
     }
     // ND_SEQ
     if (node->kind == ND_SEQ) {
-        sema_expr(node->lhs);
-        sema_expr(node->rhs);
+        sema_expr(node->lhs, func);
+        sema_expr(node->rhs, func);
         node->type = node->rhs->type;
         return;
     }
     // ND_ASGN,
     if (node->kind == ND_ASGN) {
-        sema_lval(node->lhs);
-        sema_expr(node->rhs);
+        sema_lval(node->lhs, func);
+        sema_expr(node->rhs, func);
         if (!assignable(node->lhs->type, node->rhs->type))
             error_loc(node->loc, "[semantic] type mismatch in an assignment statment");
         node->type = node->lhs->type;
@@ -288,13 +299,13 @@ void sema_expr(Node* node) {
     }
     // ND_ADDR,
     if (node->kind == ND_ADDR) {
-        sema_lval(node->lhs);
+        sema_lval(node->lhs, func);
         node->type = ptr_of(node->lhs->type);
         return;
     }
     // ND_DEREF,
     if (node->kind == ND_DEREF) {
-        sema_expr(node->lhs);
+        sema_expr(node->lhs, func);
         if (!is_pointer_compat(node->lhs->type))
             error_loc(node->loc, "dereferencing non-pointer is not allowed");
         node->type = node->lhs->type->ptr_to;
@@ -302,13 +313,13 @@ void sema_expr(Node* node) {
     }
     // ND_SIZEOF
     if (node->kind == ND_SIZEOF) {
-        sema_expr(node->lhs);
+        sema_expr(node->lhs, func);
         node->type = type_int;
         node->val = type_size(node->lhs->type);
         return;
     }
     if (node->kind == ND_NEG) {
-        sema_expr(node->lhs);
+        sema_expr(node->lhs, func);
         node->type = type_int;
         return;
     }
@@ -322,15 +333,15 @@ void sema_expr(Node* node) {
         if (params_len != vec_len(f->params))
             error_loc(node->loc, "invalid number of argument(s)");
         for (int i = 0; i < params_len; i++)
-            sema_expr(vec_at(node->block, i));
+            sema_expr(vec_at(node->block, i), func);
 
         node->type = f->ret_type;
         return;
     }
     if (node->kind == ND_COND) {
-        sema_expr(node->cond);
-        sema_expr(node->lhs);
-        sema_expr(node->rhs);
+        sema_expr(node->cond, func);
+        sema_expr(node->lhs, func);
+        sema_expr(node->rhs, func);
 
         if (!eq_type(node->lhs->type, node->rhs->type))
             error_loc(node->loc, "[semantic] type mismatch in a conditional expression");
@@ -339,7 +350,7 @@ void sema_expr(Node* node) {
     if (node->kind == ND_GVAR)
         return;
     if (node->kind == ND_ATTR) {
-        sema_expr(node->lhs);
+        sema_expr(node->lhs, func);
         if (node->lhs->type->ty != TY_STRUCT)
             error_loc(node->loc, "[semantic] attribute access to a non-struct value");
 
@@ -358,8 +369,8 @@ void sema_expr(Node* node) {
         error_loc(node->loc, "[semantic] the given attribute doesn't exist");
     }
 
-    sema_expr(node->lhs);
-    sema_expr(node->rhs);
+    sema_expr(node->lhs, func);
+    sema_expr(node->rhs, func);
     Type* lty = node->lhs->type;
     Type* rty = node->rhs->type;
     // ND_ADD,
@@ -477,7 +488,7 @@ void sema_expr(Node* node) {
     error_loc(node->loc, "unsupported feature");
 }
 
-void sema_array(Type* ty, Node* arr) {
+void sema_array(Type* ty, Node* arr, Func *func) {
     int array_len = vec_len(arr->block);
     if (array_len > ty->array_size) {
         error_loc(arr->loc, "[semantic] too long array");
@@ -486,7 +497,7 @@ void sema_array(Type* ty, Node* arr) {
     Type *elem_type = ty->ptr_to;
     for (int i = 0; i < array_len; i++) {
         Node *e = vec_at(arr->block, i);
-        sema_expr(e);
+        sema_expr(e, func);
         if (!eq_type(elem_type, e->type))
             error_loc(e->loc, "[semantic] type mismatch in array");
     }
@@ -494,10 +505,10 @@ void sema_array(Type* ty, Node* arr) {
     arr->type = ty;
 }
 
-void sema_lval(Node *node) {
+void sema_lval(Node *node, Func *func) {
     Node_kind k = node->kind;
-    if (k == ND_LVAR || k == ND_GVAR || k == ND_DEREF || k == ND_ATTR) {
-        sema_expr(node);
+    if (k == ND_VAR || k == ND_GVAR || k == ND_DEREF || k == ND_ATTR) {
+        sema_expr(node, func);
         return;
     }
     error_loc(node->loc, "[semantic] should be left value");

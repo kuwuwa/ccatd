@@ -10,7 +10,7 @@ build: $(OBJS)
 	$(CC) -o ccatd $(OBJS) $(LDFLAGS)
 	ctags -R
 
-test: ccatd
+test: build
 	bash ./test.bash
 
 clean:

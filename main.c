@@ -9,7 +9,7 @@
 void append_type_param(Vec *params, Type* t) {
     Node *node = (Node*) calloc(1, sizeof(Node));
     node->type = t;
-    node->kind = ND_LVAR;
+    node->kind = ND_VAR;
     vec_push(params, node);
 }
 

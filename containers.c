@@ -81,11 +81,6 @@ void strbld_append_str(StringBuilder *sb, char *ch) {
 
 // Map
 
-struct Map {
-    Vec *keys;
-    Vec *values;
-};
-
 Map *map_new() {
     Map *m = calloc(1, sizeof(Map));
     m->keys = vec_new();

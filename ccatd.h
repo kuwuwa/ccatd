@@ -50,11 +50,14 @@ char *strbld_build(StringBuilder *sb);
 void strbld_append(StringBuilder *sb, char ch);
 void strbld_append_str(StringBuilder *sb, char *ch);
 
+struct Map {
+    Vec *keys;
+    Vec *values;
+};
+
 Map *map_new();
 void map_put(Map *m, void *k, void *v);
 void *map_find(Map *m, char *k);
-Vec *map_values(Map *m);
-int map_size(Map *m);
 void *map_pop(Map *m);
 
 struct Environment {
@@ -109,7 +112,7 @@ void tokenize(char *p);
 typedef enum {
     // expressions
     ND_NUM,
-    ND_LVAR,
+    ND_VAR,
     ND_SEQ,
     ND_ASGN,
     ND_COND,
@@ -170,6 +173,7 @@ struct Func {
     Vec *block;
     int offset;
     Type *ret_type;
+    Map *global_vars;
     Location *loc;
 };
 

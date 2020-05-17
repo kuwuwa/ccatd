@@ -144,8 +144,12 @@ Func *func(Type *typ, Token *name) {
     func->params = par;
     func->block = blk;
     func->loc = name->loc;
-
     func->ret_type = typ;
+    func->global_vars = map_new();
+    for (int i = 0; i < vec_len(global_vars->values); i++) {
+        Node *gvar = vec_at(global_vars->values, i);
+        map_put(func->global_vars, gvar->name, gvar);
+    }
     return func;
 }
 
@@ -205,7 +209,11 @@ Node *var_decl() {
     Token *tk = expect(TK_IDT);
 
     type_array(&typ);
-    return push_lvar(typ, tk);
+    Node *var = mknode(ND_VAR, tk->loc);
+    var->name = tk->str;
+    var->type = typ;
+    return var;
+    // return push_lvar(typ, tk);
 }
 
 Type *type() {
@@ -491,9 +499,11 @@ Node *term() {
             node->name = tk->str;
             node->block = args();
         } else { // variable
-            node = find_var(tk);
-            if (node == NULL)
-                error_loc(tk->loc, "variable not defined");
+            node = mknode(ND_VAR, tk->loc);
+            node->name = tk->str;
+            // node = find_var(tk);
+            // if (node == NULL)
+            //     error_loc(tk->loc, "variable not defined");
         }
     } else if ((tk = consume(TK_NUM))) { // number
         node = mknum(tk->val, tk->loc);
@@ -702,7 +712,7 @@ Node *push_lvar(Type *typ, Token *tk) {
     if (env_find(locals, tk->str) != NULL)
         error_loc(tk->loc, "[parse] duplicate variable");
 
-    Node *var = mknode(ND_LVAR, tk->loc);
+    Node *var = mknode(ND_VAR, tk->loc);
     var->name = tk->str;
     var->type = typ;
 

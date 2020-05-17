@@ -23,14 +23,14 @@ char *word_of_type(Type*);
 
 void gen_globals() {
     printf("  .data\n");
-    for (int i = 0; i < map_size(global_vars); i++) {
-        Node *global = vec_at(map_values(global_vars), i);
+    for (int i = 0; i < vec_len(global_vars->values); i++) {
+        Node *global = vec_at(global_vars->values, i);
 
         printf("  .globl %s\n", global->name);
     }
 
-    for (int i = 0; i < map_size(global_vars); i++) {
-        Node *global = vec_at(map_values(global_vars), i);
+    for (int i = 0; i < vec_len(global_vars->values); i++) {
+        Node *global = vec_at(global_vars->values, i);
         printf("%s:\n", global->name);
         if (global->rhs == NULL)
             printf("  .zero %d\n", type_size(global->type));
@@ -204,7 +204,7 @@ void gen(Node *node) {
         }
     }
 
-    if (node->kind == ND_LVAR) {
+    if (node->kind == ND_VAR) {
         printf("  mov rax, rbp\n");
         printf("  sub rax, %d\n", node->val);
 
@@ -620,7 +620,7 @@ void gen_func(Func* func) {
 }
 
 void gen_lval(Node *node) {
-    if (node->kind == ND_LVAR) {
+    if (node->kind == ND_VAR) {
         printf("# load local variable %s\n", node->name);
         printf("  mov rax, rbp\n");
         printf("  sub rax, %d\n", node->val);
@@ -656,7 +656,7 @@ void gen_lval(Node *node) {
 
 bool is_expr(Node_kind kind) {
     static Node_kind expr_kinds[] = {
-        ND_NUM, ND_LVAR, ND_ASGN, ND_ADD, ND_SUB, ND_MUL, ND_DIV, ND_EQ, ND_NEQ, ND_LT, ND_LTE,
+        ND_NUM, ND_VAR, ND_ASGN, ND_ADD, ND_SUB, ND_MUL, ND_DIV, ND_EQ, ND_NEQ, ND_LT, ND_LTE,
         ND_CALL, ND_ADDR, ND_DEREF, ND_SIZEOF, ND_INDEX, ND_GVAR, ND_STRING
     };
     for (int i = 0; i < sizeof(expr_kinds) / sizeof(Node_kind); i++)
