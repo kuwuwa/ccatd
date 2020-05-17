@@ -4,38 +4,28 @@
 
 // struct declarations
 
-typedef struct Location Location;
 struct Location;
-
-typedef struct Token Token;
 struct Token;
-
-typedef struct Node Node;
 struct Node;
-
-typedef struct Vector Vec;
 struct Vector;
-
-typedef struct StringBuilder StringBuilder;
 struct StringBuilder;
-
-typedef struct Map Map;
-struct Map;
-
-typedef struct Func Func;
 struct Func;
-
-typedef struct Struct Struct;
 struct Struct;
-
-typedef struct Type Type;
 struct Type;
-
-typedef struct String String;
 struct String;
-
-typedef struct Environment Environment;
 struct Environment;
+
+typedef struct Location Location;
+typedef struct Token Token;
+typedef struct Node Node;
+typedef struct Vector Vec;
+typedef struct StringBuilder StringBuilder;
+typedef struct Map Map;
+typedef struct Func Func;
+typedef struct Struct Struct;
+typedef struct Type Type;
+typedef struct String String;
+typedef struct Environment Environment;
 
 // containers
 

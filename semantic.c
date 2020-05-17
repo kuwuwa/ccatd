@@ -8,10 +8,15 @@ Environment *local_vars;
 int scoped_stack_space;
 int max_scoped_stack_space;
 
+// global
+
 void sema_globals();
 void sema_const(Node*);
 void sema_const_aux(Node*);
 void sema_const_array(Type*, Node*);
+
+// Functions, statements and expressions
+
 void sema_func(Func*);
 void sema_block(Vec*, Func*);
 void sema_stmt(Node*, Func*);
@@ -19,13 +24,14 @@ void sema_expr(Node*, Func*);
 void sema_lval(Node*, Func*);
 void sema_array(Type*, Node*, Func*);
 
+// Helpers
+
 bool assignable(Type*, Type*);
 bool assignable_decl(Type*, Type*);
 bool eq_type(Type*, Type*);
-
 Func *find_func(Node *node);
 
-// ------------------------------------------------------------
+// Global
 
 void sema_globals() {
     int globals_len = vec_len(global_vars->values);
@@ -142,6 +148,8 @@ void sema_const_array(Type *type, Node *node) {
     node->type = type;
 }
 
+// Functions, statements and expressions
+
 void sema_func(Func *func) {
     int params_len = vec_len(func->params);
     // no duplicate parameter
@@ -149,9 +157,8 @@ void sema_func(Func *func) {
         Node *pi = vec_at(func->params, i);
         for (int j = i+1; j < params_len; j++) {
             Node *pj = vec_at(func->params, j);
-            if (!strcmp(pi->name, pj->name)) {
+            if (!strcmp(pi->name, pj->name))
                 error_loc(pi->loc, "%s: duplicate parameter `%s'", func->name, pi->name);
-            }
         }
     }
 
@@ -347,8 +354,6 @@ void sema_expr(Node* node, Func *func) {
             error_loc(node->loc, "[semantic] type mismatch in a conditional expression");
         return;
     }
-    if (node->kind == ND_GVAR)
-        return;
     if (node->kind == ND_ATTR) {
         sema_expr(node->lhs, func);
         if (node->lhs->type->ty != TY_STRUCT)
@@ -375,44 +380,40 @@ void sema_expr(Node* node, Func *func) {
     Type* rty = node->rhs->type;
     // ND_ADD,
     if (node->kind == ND_ADD) {
-        if (is_int(lty) && is_int(rty)) {
+        if (is_int(lty) && is_int(rty))
             node->type = type_int;
-        } else if (is_pointer_compat(lty) && is_int(rty)) {
+        else if (is_pointer_compat(lty) && is_int(rty))
             node->type = coerce_pointer(lty);
-        } else if (is_int(lty) && is_pointer_compat(rty)) {
+        else if (is_int(lty) && is_pointer_compat(rty))
             node->type = coerce_pointer(rty);
-        } else {
+        else
             error_loc(node->loc, "unsupported addition");
-        }
         return;
     }
     // ND_SUB,
     if (node->kind == ND_SUB) {
-        if (is_int(lty) && is_int(rty)) {
+        if (is_int(lty) && is_int(rty))
             node->type = type_int;
-        } else if (is_pointer_compat(lty) && is_int(rty)) {
+        else if (is_pointer_compat(lty) && is_int(rty))
             node->type = coerce_pointer(lty);
-        } else {
+        else
             error_loc(node->loc, "unsupported subtraction");
-        }
         return;
     }
     // ND_MUL,
     if (node->kind == ND_MUL) {
-        if (is_int(lty) && is_int(rty)) {
+        if (is_int(lty) && is_int(rty))
             node->type = type_int;
-        } else {
+        else
             error_loc(node->loc, "unsupported multiplication");
-        }
         return;
     }
     // ND_DIV,
     if (node->kind == ND_DIV) {
-        if (is_int(lty) && is_int(rty)) {
+        if (is_int(lty) && is_int(rty))
             node->type = type_int;
-        } else {
+        else
             error_loc(node->loc, "unsupported division");
-        }
         return;
     }
     // ND_MOD
@@ -490,9 +491,8 @@ void sema_expr(Node* node, Func *func) {
 
 void sema_array(Type* ty, Node* arr, Func *func) {
     int array_len = vec_len(arr->block);
-    if (array_len > ty->array_size) {
+    if (array_len > ty->array_size)
         error_loc(arr->loc, "[semantic] too long array");
-    }
 
     Type *elem_type = ty->ptr_to;
     for (int i = 0; i < array_len; i++) {
@@ -507,12 +507,12 @@ void sema_array(Type* ty, Node* arr, Func *func) {
 
 void sema_lval(Node *node, Func *func) {
     Node_kind k = node->kind;
-    if (k == ND_VAR || k == ND_GVAR || k == ND_DEREF || k == ND_ATTR) {
-        sema_expr(node, func);
-        return;
-    }
-    error_loc(node->loc, "[semantic] should be left value");
+    if (k != ND_VAR && k != ND_GVAR && k != ND_DEREF && k != ND_ATTR)
+        error_loc(node->loc, "[semantic] should be left value");
+    sema_expr(node, func);
 }
+
+// Helpers
 
 // TODO: Needs to be improved
 bool assignable(Type *lhs, Type *rhs) {
@@ -530,13 +530,13 @@ bool assignable(Type *lhs, Type *rhs) {
 }
 
 bool eq_type(Type* t1, Type* t2) {
-    if (t1->ty == TY_PTR && t2->ty == TY_PTR) {
+    if (t1->ty == TY_PTR && t2->ty == TY_PTR)
         return eq_type(t1->ptr_to, t2->ptr_to);
-    } else if (t1->ty == TY_ARRAY && t2->ty == TY_ARRAY) {
+    else if (t1->ty == TY_ARRAY && t2->ty == TY_ARRAY)
         return eq_type(t1->ptr_to, t2->ptr_to);
-    } else if (t1->ty == TY_STRUCT && t2->ty == TY_STRUCT) {
+    else if (t1->ty == TY_STRUCT && t2->ty == TY_STRUCT)
         return t1 == t2;
-    } else
+    else
         return t1->ty == t2->ty;
 }
 

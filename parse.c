@@ -12,7 +12,6 @@
 int index = 0;
 Vec *functions;
 Map *global_vars;
-Environment *locals;
 Environment *structs;
 Environment *aliases;
 
@@ -22,15 +21,16 @@ Node *parse_struct(Node_kind kind, Location *loc);
 Type *struct_pre(Location *loc);
 Node *var_decl();
 Type *type();
-void type_array(Type**);
-void type_pointer(Type**);
+Type *type_array(Type*);
+Type *type_pointer(Type*);
 Vec *params();
 Node *stmt();
 Vec *block();
 
+// Expressions 
+
 Node *rhs_expr();
 Node *array(Location *start);
-
 Node *expr();
 Node *assignment();
 Node *conditional();
@@ -46,7 +46,6 @@ Node *add();
 Node *mul();
 Node *unary();
 Node *term();
-
 Vec *args();
 
 // Parse helpers
@@ -70,11 +69,6 @@ Node *mknode(Node_kind kind, Location *loc);
 Node *binop(Node_kind kind, Node *lhs, Node *rhs, Location *loc);
 Node *mknum(int v, Location *loc);
 
-// Global helpers
-
-Node *find_var(Token* token);
-Node *push_lvar(Type* typ, Token* token);
-
 // Parse
 
 void parse() {
@@ -87,7 +81,6 @@ void parse() {
 }
 
 void toplevel() {
-    locals = env_new(NULL);
     Token *tk;
     if ((tk = consume_keyword("typedef"))) {
         Type *typ = consume_keyword("struct")
@@ -107,7 +100,7 @@ void toplevel() {
         Node *gvar = parse_struct(ND_GVAR, tk->loc);
 
         if (gvar != NULL) {
-            type_array(&gvar->type);
+            gvar->type = type_array(gvar->type);
             gvar->rhs = consume_keyword("=") ? rhs_expr() : NULL;
             map_put(global_vars, gvar->name, gvar);
         }
@@ -124,7 +117,7 @@ void toplevel() {
         Node *node = mknode(ND_GVAR, tk->loc);
         node->name = tk->str;
 
-        type_array(&typ);
+        typ = type_array(typ);
 
         node->rhs = consume_keyword("=") ? rhs_expr() : NULL;
 
@@ -184,7 +177,7 @@ Type *struct_pre(Location *start) {
     if (typ != NULL && typ->strct->name != NULL)
         env_push(structs, typ->strct->name, typ);
 
-    type_pointer(&typ);
+    typ = type_pointer(typ);
     return typ;
 }
 
@@ -208,12 +201,11 @@ Node *var_decl() {
     Type *typ = type();
     Token *tk = expect(TK_IDT);
 
-    type_array(&typ);
+    typ = type_array(typ);
     Node *var = mknode(ND_VAR, tk->loc);
     var->name = tk->str;
     var->type = typ;
     return var;
-    // return push_lvar(typ, tk);
 }
 
 Type *type() {
@@ -237,7 +229,6 @@ Vec *params() {
 }
 
 Vec *block() {
-    locals = env_new(locals);
     structs = env_new(structs);
 
     Vec *vec = vec_new();
@@ -245,7 +236,6 @@ Vec *block() {
     while (!consume_keyword("}"))
         vec_push(vec, stmt());
 
-    locals = env_next(locals);
     structs = env_next(structs);
     return vec;
 }
@@ -270,7 +260,6 @@ Node *stmt() {
         expect_keyword(")");
         node->body = stmt();
     } else if ((tk = consume_keyword("for"))) {
-        locals = env_new(locals);
         node = mknode(ND_FOR, tk->loc);
         expect_keyword("(");
         if (!consume_keyword(";")) {
@@ -291,17 +280,15 @@ Node *stmt() {
             expect_keyword(")");
         }
         node->body = stmt();
-        locals = env_next(locals);
-    } else if (lookahead_keyword("{")) {
+    } else if ((tk = lookahead_keyword("{"))) {
         Vec *vec = block();
-        node = mknode(ND_BLOCK, NULL);
+        node = mknode(ND_BLOCK, tk->loc);
         node->block = vec;
     } else if (lookahead_var_decl()) {
         Node *lhs = var_decl();
         Node *rhs = consume_keyword("=") ? rhs_expr() : NULL;
-        expect_keyword(";");
-
         node = binop(ND_VARDECL, lhs, rhs, lhs->loc);
+        expect_keyword(";");
     } else {
         node = expr();
         expect_keyword(";");
@@ -309,18 +296,21 @@ Node *stmt() {
     return node;
 }
 
-void type_pointer(Type **t) {
-    while (consume_keyword("*"))
-        *t = ptr_of(*t);
+Type *type_pointer(Type *t) {
+    while (consume_keyword("*")) t = ptr_of(t);
+    return t;
 }
 
-void type_array(Type **t) {
+Type *type_array(Type *t) {
     while (consume_keyword("[")) {
         Token *len = consume(TK_NUM);
-        *t = array_of(*t, len->val);
+        t = array_of(t, len->val);
         expect_keyword("]");
     }
+    return t;
 }
+
+// Expressions 
 
 Node *rhs_expr() {
     Token *tk = NULL;
@@ -501,9 +491,6 @@ Node *term() {
         } else { // variable
             node = mknode(ND_VAR, tk->loc);
             node->name = tk->str;
-            // node = find_var(tk);
-            // if (node == NULL)
-            //     error_loc(tk->loc, "variable not defined");
         }
     } else if ((tk = consume(TK_NUM))) { // number
         node = mknum(tk->val, tk->loc);
@@ -528,10 +515,8 @@ Node *term() {
             expect_keyword("]");
 
             Node *add_node = binop(ND_ADD, node, index_node, tk->loc);
-
             Node *next_node = mknode(ND_DEREF, tk->loc);
             next_node->lhs = add_node;
-
             node = next_node;
         } else if ((tk = consume_keyword("."))) {
             Token *attr = expect(TK_IDT);
@@ -665,7 +650,7 @@ Type *consume_type_pre() {
     if (typ == NULL)
         return NULL;
 
-    type_pointer(&typ);
+    typ = type_pointer(typ);
     return typ;
 }
 
@@ -679,11 +664,9 @@ Node *mknode(Node_kind kind, Location* loc) {
 }
 
 Node *binop(Node_kind kind, Node *lhs, Node *rhs, Location *loc) {
-    Node *node = calloc(1, sizeof(Node));
-    node->kind = kind;
+    Node *node = mknode(kind, loc);
     node->lhs = lhs;
     node->rhs = rhs;
-    node->loc = loc;
     return node;
 }
 
@@ -693,29 +676,4 @@ Node *mknum(int v, Location *loc) {
     node->kind = ND_NUM;
     node->val = v;
     return node;
-}
-
-// Environment helpers
-
-Node *find_var(Token *token) {
-    if (token->kind != TK_IDT)
-        error("find_var: variable expected\n");
-
-    Node *lvar = env_find(locals, token->str);
-    if (lvar != NULL)
-        return lvar;
-
-    return map_find(global_vars, token->str);
-}
-
-Node *push_lvar(Type *typ, Token *tk) {
-    if (env_find(locals, tk->str) != NULL)
-        error_loc(tk->loc, "[parse] duplicate variable");
-
-    Node *var = mknode(ND_VAR, tk->loc);
-    var->name = tk->str;
-    var->type = typ;
-
-    env_push(locals, var->name, var);
-    return var;
 }
