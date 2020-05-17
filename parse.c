@@ -280,6 +280,14 @@ Node *stmt() {
             expect_keyword(")");
         }
         node->body = stmt();
+    } else if ((tk = consume_keyword("do"))) {
+        node = mknode(ND_DOWHILE, tk->loc);
+        node->body = stmt();
+        expect_keyword("while");
+        expect_keyword("(");
+        node->cond = expr();
+        expect_keyword(")");
+        expect_keyword(";");
     } else if ((tk = lookahead_keyword("{"))) {
         Vec *vec = block();
         node = mknode(ND_BLOCK, tk->loc);

@@ -428,6 +428,21 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_DOWHILE) {
+        printf(".Ldowhile%d:\n", label_num);
+        gen_stmt(node->body);
+        printf("# prepare do-while repeat check\n");
+        gen(node->cond);
+        printf("# do-while repeat check\n");
+        printf("  pop rax\n"
+               "  cmp rax, 0\n");
+        printf("  jne .Ldowhile%d\n", label_num);
+
+        stack_depth -= 8;
+        label_num += 1;
+        return;
+    }
+
     if (node->kind == ND_BLOCK) {
         int len = vec_len(node->block);
         for (int i = 0; i < len; i++)

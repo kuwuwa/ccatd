@@ -52,5 +52,6 @@ try_return 'sample/assignment2.c' 4
 try_return 'test/test1.c' 0
 try_return 'test/test2.c' 0
 try_return 'test/test3.c' 0
+try_return 'test/test4.c' 0
 
 echo "Accepted!!"

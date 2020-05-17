@@ -140,6 +140,7 @@ typedef enum {
     ND_IF,
     ND_WHILE,
     ND_FOR,
+    ND_DOWHILE,
     ND_BLOCK,
 } Node_kind;
 

@@ -57,7 +57,7 @@ char *mem_op(char *p) {
 
 Token *mem_kwd(char *p, int len) {
     static char *tkids[] = {
-        "return", "if", "else", "while", "for", "typedef", "sizeof", "struct"
+        "return", "if", "else", "while", "for", "typedef", "sizeof", "struct", "do"
     };
     int tkids_len = sizeof(tkids) / sizeof(char*);
 

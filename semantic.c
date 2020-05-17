@@ -248,6 +248,11 @@ void sema_stmt(Node *node, Func *func) {
         sema_block(for_block, func);
         return;
     }
+    if (node->kind == ND_DOWHILE) {
+        sema_stmt(node->body, func);
+        sema_expr(node->cond, func);
+        return;
+    }
     if (node->kind == ND_BLOCK) {
         sema_block(node->block, func);
         return;
