@@ -43,6 +43,8 @@ void init() {
     global_vars = map_new();
     string_literals = vec_new();
 
+    // semantic
+
     func_env = vec_new();
     push_function(
             "foo",

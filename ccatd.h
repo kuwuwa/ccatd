@@ -141,6 +141,8 @@ typedef enum {
     ND_WHILE,
     ND_FOR,
     ND_DOWHILE,
+    ND_BREAK,
+    ND_CONTINUE,
     ND_BLOCK,
 } Node_kind;
 

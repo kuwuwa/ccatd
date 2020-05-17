@@ -5,10 +5,12 @@
 Vec *func_env;
 Map *global_env;
 Environment *local_vars;
+int loop_id = 0;
+Vec *loop_labels;
 int scoped_stack_space;
 int max_scoped_stack_space;
 
-// global
+// Global
 
 void sema_globals();
 void sema_const(Node*);
@@ -30,6 +32,7 @@ bool assignable(Type*, Type*);
 bool assignable_decl(Type*, Type*);
 bool eq_type(Type*, Type*);
 Func *find_func(Node *node);
+char *gen_loop_label(char *prefix);
 
 // Global
 
@@ -166,6 +169,7 @@ void sema_func(Func *func) {
 
     // block
     local_vars = env_new(NULL);
+    loop_labels = vec_new();
     for (int i = 0; i < params_len; i++) {
         Node* param = vec_at(func->params, i);
         param->val = 8 * (i + 1);
@@ -233,24 +237,44 @@ void sema_stmt(Node *node, Func *func) {
         return;
     }
     if (node->kind == ND_WHILE) {
+        char *loop_label = gen_loop_label("while");
+        node->name = loop_label;
         sema_expr(node->cond, func);
+        vec_push(loop_labels, loop_label);
         sema_stmt(node->body, func);
+        vec_pop(loop_labels);
         return;
     }
     if (node->kind == ND_FOR) {
+        char *loop_label = gen_loop_label("for");
+        node->name = loop_label;
+        vec_push(loop_labels, loop_label);
         Vec *for_block = vec_new();
         if (node->lhs != NULL)
             vec_push(for_block, node->lhs);
-        vec_push(for_block, node->cond);
+        if (node->cond != NULL)
+            vec_push(for_block, node->cond);
         if (node->rhs != NULL)
             vec_push(for_block, node->rhs);
         vec_push(for_block, node->body);
         sema_block(for_block, func);
+        vec_pop(loop_labels);
         return;
     }
     if (node->kind == ND_DOWHILE) {
+        char *loop_label = gen_loop_label("dowhile");
+        node->name = loop_label;
+        vec_push(loop_labels, loop_label);
         sema_stmt(node->body, func);
+        vec_pop(loop_labels);
         sema_expr(node->cond, func);
+        return;
+    }
+    if (node->kind == ND_BREAK || node->kind == ND_CONTINUE) {
+        if (vec_len(loop_labels) == 0)
+            error_loc(node->loc, "break/continue should be inside a loop statement");
+        char *label = vec_at((loop_labels), vec_len(loop_labels)-1);
+        node->name = label;
         return;
     }
     if (node->kind == ND_BLOCK) {
@@ -553,4 +577,11 @@ Func *find_func(Node *node) {
             return func;
     }
     return NULL;
+}
+
+char *gen_loop_label(char *prefix) {
+    int len = strlen(prefix) + 11;
+    char *str = calloc(len, sizeof(char));
+    sprintf(str, "%s%d", prefix, loop_id++);
+    return str;
 }

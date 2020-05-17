@@ -288,6 +288,12 @@ Node *stmt() {
         node->cond = expr();
         expect_keyword(")");
         expect_keyword(";");
+    } else if ((tk = consume_keyword("break"))) {
+        expect_keyword(";");
+        node = mknode(ND_BREAK, tk->loc);
+    } else if ((tk = consume_keyword("continue"))) {
+        expect_keyword(";");
+        node = mknode(ND_CONTINUE, tk->loc);
     } else if ((tk = lookahead_keyword("{"))) {
         Vec *vec = block();
         node = mknode(ND_BLOCK, tk->loc);

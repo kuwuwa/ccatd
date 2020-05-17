@@ -396,50 +396,64 @@ void gen(Node *node) {
     }
 
     if (node->kind == ND_WHILE) {
-        printf(".Lwhile%d:\n", label_num);
+        char *label_base = node->name;
+        printf(".L%s_cont:\n", label_base);
         gen(node->cond);
         printf("# while jump\n");
         printf("  pop rax\n"
                "  cmp rax, 0\n");
-        printf("  je .Lend_while%d\n", label_num);
+        printf("  je .L%s_end\n", label_base);
         printf("# while body\n");
         gen_stmt(node->body);
-        printf("  jmp .Lwhile%d\n", label_num);
-        printf(".Lend_while%d:\n", label_num);
-
-        label_num += 1;
+        printf("  jmp .L%s_cont\n", label_base);
+        printf(".L%s_end:\n", label_base);
         return;
     }
 
     if (node->kind == ND_FOR) {
-        gen_stmt(node->lhs);
-        printf(".Lfor%d:\n", label_num);
-        gen(node->cond);
-        printf("  pop rax\n"
-               "  cmp rax, 0\n");
-        printf("  je .Lend_for%d\n", label_num);
-        stack_depth -= 8;
+        if (node->lhs != NULL)
+            gen_stmt(node->lhs);
+        printf(".L%s:\n", node->name);
+        if (node->cond != NULL) {
+            gen(node->cond);
+            printf("  pop rax\n"
+                   "  cmp rax, 0\n");
+            printf("  je .L%s_end\n", node->name);
+            stack_depth -= 8;
+        }
         gen_stmt(node->body);
-        gen_stmt(node->rhs);
-        printf("  jmp .Lfor%d\n", label_num);
-        printf(".Lend_for%d:\n", label_num);
-
-        label_num += 1;
+        printf(".L%s_cont:\n", node->name);
+        if (node->rhs != NULL)
+            gen_stmt(node->rhs);
+        printf("  jmp .L%s\n", node->name);
+        printf(".L%s_end:\n", node->name);
         return;
     }
 
     if (node->kind == ND_DOWHILE) {
-        printf(".Ldowhile%d:\n", label_num);
+        printf(".L%s:\n", node->name);
         gen_stmt(node->body);
         printf("# prepare do-while repeat check\n");
+        printf(".L%s_cont:\n", node->name);
         gen(node->cond);
         printf("# do-while repeat check\n");
         printf("  pop rax\n"
                "  cmp rax, 0\n");
-        printf("  jne .Ldowhile%d\n", label_num);
+        printf("  jne .L%s\n", node->name);
+        printf(".L%s_end:\n", node->name);
 
         stack_depth -= 8;
         label_num += 1;
+        return;
+    }
+
+    if (node->kind == ND_CONTINUE) {
+        printf("  jmp .L%s_cont\n", node->name);
+        return;
+    }
+
+    if (node->kind == ND_BREAK) {
+        printf("  jmp .L%s_end\n", node->name);
         return;
     }
 
