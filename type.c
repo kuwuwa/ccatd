@@ -3,6 +3,7 @@
 
 Type *type_int; Type *type_char;
 Type *type_ptr_char;
+Type *type_void;
 
 Type *ptr_of(Type *ty) {
     Type *ret = (Type*) calloc(1, sizeof(Type));

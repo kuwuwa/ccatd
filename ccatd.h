@@ -179,6 +179,7 @@ struct Struct {
 extern Vec *functions;
 extern Map *global_vars;
 extern Vec *string_literals;
+extern Environment *builtin_aliases;
 
 Environment *environment;
 
@@ -189,7 +190,7 @@ Node *mknum(int v, Location *loc);
 // type
 
 struct Type {
-    enum { TY_INT, TY_CHAR, TY_PTR, TY_ARRAY, TY_STRUCT } ty;
+    enum { TY_VOID, TY_INT, TY_CHAR, TY_PTR, TY_ARRAY, TY_STRUCT } ty;
     Type* ptr_to;
     int array_size;
     Struct *strct;
@@ -198,6 +199,7 @@ struct Type {
 extern Type *type_int;
 extern Type *type_char;
 extern Type *type_ptr_char;
+extern Type *type_void;
 
 Type *ptr_of(Type *type);
 

@@ -29,7 +29,6 @@ void sema_array(Type*, Node*, Func*);
 // Helpers
 
 bool assignable(Type*, Type*);
-bool assignable_decl(Type*, Type*);
 bool eq_type(Type*, Type*);
 Func *find_func(Node *node);
 char *gen_loop_label(char *prefix);
@@ -158,6 +157,9 @@ void sema_func(Func *func) {
     // no duplicate parameter
     for (int i = 0; i < params_len; i++) {
         Node *pi = vec_at(func->params, i);
+        if (pi->type == type_void)
+            error_loc(pi->loc, "[semantic] a parameter of void type is not allowed");
+
         for (int j = i+1; j < params_len; j++) {
             Node *pj = vec_at(func->params, j);
             if (!strcmp(pi->name, pj->name))
@@ -199,6 +201,9 @@ void sema_stmt(Node *node, Func *func) {
         if (lvar != NULL)
             error_loc(node->loc, "[semantic] duplicate variable declaration");
 
+        if (node->lhs->type == type_void)
+            error_loc(node->loc, "[semantic] declaring a variable of void type is not fllowed");
+
         if (node->rhs != NULL) {
             if (node->lhs->type->ty == TY_ARRAY) {
                 if (node->lhs->type->ptr_to->ty == TY_CHAR && node->rhs->kind == ND_STRING)
@@ -225,8 +230,14 @@ void sema_stmt(Node *node, Func *func) {
         return;
     }
     if (node->kind == ND_RETURN) {
-        sema_expr(node->lhs, func);
-        eq_type(node->lhs->type, func->ret_type);
+        if (node->lhs == NULL) {
+            if (!eq_type(func->ret_type, type_void))
+                error_loc(node->loc, "[semantic] type mismatch in a return statement");
+        } else {
+            sema_expr(node->lhs, func);
+            if (!eq_type(node->lhs->type, func->ret_type))
+                error_loc(node->loc, "[semantic] type mismatch in a return statement");
+        }
         return;
     }
     if (node->kind == ND_IF) {
@@ -545,6 +556,8 @@ void sema_lval(Node *node, Func *func) {
 
 // TODO: Needs to be improved
 bool assignable(Type *lhs, Type *rhs) {
+    if (lhs == type_void || rhs == type_void)
+        return false;
     if (lhs == type_int)
         return rhs == type_int || rhs == type_char;
     if (lhs == type_char)

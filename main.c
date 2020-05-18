@@ -27,6 +27,10 @@ void push_function(char *name, Type **arg_types, int argc, Type *ret_type) {
 void init() {
     // type
 
+    type_void = calloc(1, sizeof(Type));
+    type_void->ty = TY_VOID;
+    type_void->ptr_to = NULL;
+
     type_int = calloc(1, sizeof(Type));
     type_int->ty = TY_INT;
     type_int->ptr_to = NULL;
@@ -36,6 +40,11 @@ void init() {
     type_char->ptr_to = NULL;
 
     type_ptr_char = ptr_of(type_char);
+
+    builtin_aliases = env_new(NULL);
+    env_push(builtin_aliases, "void", type_void);
+    env_push(builtin_aliases, "int", type_int);
+    env_push(builtin_aliases, "char", type_char);
 
     // parse
 

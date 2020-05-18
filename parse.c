@@ -13,6 +13,7 @@ int index = 0;
 Vec *functions;
 Map *global_vars;
 Environment *structs;
+Environment *builtin_aliases;
 Environment *aliases;
 
 void toplevel();
@@ -73,7 +74,7 @@ Node *mknum(int v, Location *loc);
 
 void parse() {
     structs = env_new(NULL);
-    aliases = env_new(NULL);
+    aliases = env_new(builtin_aliases);
 
     int len = vec_len(tokens);
     while (index < len)
@@ -244,8 +245,12 @@ Node *stmt() {
     Token *tk;
     Node *node;
     if ((tk = consume_keyword("return"))) {
-        node = binop(ND_RETURN, expr(), NULL, tk->loc);
-        expect_keyword(";");
+        Node *ret = NULL;
+        if (consume_keyword(";") == NULL) {
+            ret = expr();
+            expect_keyword(";");
+        }
+        node = binop(ND_RETURN, ret, NULL, tk->loc);
     } else if ((tk = consume_keyword("if"))) {
         node = mknode(ND_IF, tk->loc);
         expect_keyword("(");
@@ -630,21 +635,11 @@ Token *lookahead_type(char* str) {
 bool lookahead_var_decl() {
     Token *tk;
     return lookahead_keyword("struct") != NULL
-        || lookahead_type("int") != NULL
-        || lookahead_type("char")
         || (((tk = lookahead(TK_IDT)) != NULL)
                 && env_find(aliases, tk->str) != NULL);
 }
 
 Type *consume_type_identifier() {
-    if (lookahead_type("int")) {
-        index++;
-        return type_int;
-    } else if (lookahead_type("char")) {
-        index++;
-        return type_char;
-    }
-
     Token *id = lookahead(TK_IDT);
     Type *typ = env_find(aliases, id->str);
     if (typ != NULL)

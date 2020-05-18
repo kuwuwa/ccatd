@@ -1,4 +1,13 @@
 
+void fail() {
+    assert_equals(0, 1);
+}
+
+void try_void_return() {
+    return;
+    fail();
+}
+
 int main() {
     int a = 0;
     int b = 1;
@@ -20,7 +29,7 @@ int main() {
 
     for (;;) {
         break;
-        assert_equals(1, 2); // fail
+        fail();
     }
 
     int r = 0;
@@ -40,6 +49,12 @@ int main() {
             assert_equals(i % 2, 1);
         }
     }
+
+    try_void_return();
+    try_void_return();
+    try_void_return();
+
+    void *xxx;
 
     return 0;
 }
