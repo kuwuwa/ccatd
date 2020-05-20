@@ -30,7 +30,7 @@ void sema_array(Type*, Node*, Func*);
 
 bool assignable(Type*, Type*);
 bool eq_type(Type*, Type*);
-Func *find_func(Node *node);
+Func *find_func(char *name);
 char *gen_loop_label(char *prefix);
 
 // Global
@@ -41,14 +41,20 @@ void sema_globals() {
         Node *g = vec_at(global_vars->values, i);
         for (int j = 0; j < i; j++) {
             Node *h = vec_at(global_vars->values, j);
-            if (!strcmp(g->name, h->name))
-                error_loc(g->loc, "duplicate global variable found");
+            if (!strcmp(g->name, h->name)) {
+                if (!g->is_extern && !h->is_extern)
+                    error_loc(g->loc, "[semantic] duplicate global variable found");
+                if (!eq_type(g->type, h->type))
+                    error_loc(g->loc, "[semantic] type mismatch between variable declarations");
+            }
         }
     }
 
     global_env = map_new();
     for (int i = 0; i < globals_len; i++) {
         Node *g = vec_at(global_vars->values, i);
+        if (g->is_extern)
+            continue;
         if (g->kind != ND_GVAR)
             error_loc(g->loc, "[semantic] a global variable expected");
 
@@ -165,6 +171,28 @@ void sema_func(Func *func) {
             if (!strcmp(pi->name, pj->name))
                 error_loc(pi->loc, "%s: duplicate parameter `%s'", func->name, pi->name);
         }
+    }
+
+    if (func->is_extern) {
+        vec_push(func_env, func);
+        return;
+    }
+
+    Func *g = find_func(func->name);
+    if (g != NULL) {
+        if (!g->is_extern)
+            error_loc(func->loc, "[semantic] a name conflict between functions");
+
+        int params_len = vec_len(func->params);
+        bool matched = params_len == vec_len(g->params);
+        if (matched) for (int i = 0; matched && i < params_len; i++) {
+            Node *fi = vec_at(func->params, i);
+            Node *gi = vec_at(g->params, i);
+            matched = matched && eq_type(fi->type, gi->type);
+        }
+
+        if (!matched)
+            error_loc(func->loc, "[semantic] function signature doesn't match with a previous declaration");
     }
 
     vec_push(func_env, func);
@@ -372,7 +400,7 @@ void sema_expr(Node* node, Func *func) {
     }
     // ND_CALL,
     if (node->kind == ND_CALL) {
-        Func *f = find_func(node);
+        Func *f = find_func(node->name);
         if (f == NULL)
             error_loc(node->loc, "undefined function");
 
@@ -571,22 +599,11 @@ bool assignable(Type *lhs, Type *rhs) {
     return false;
 }
 
-bool eq_type(Type* t1, Type* t2) {
-    if (t1->ty == TY_PTR && t2->ty == TY_PTR)
-        return eq_type(t1->ptr_to, t2->ptr_to);
-    else if (t1->ty == TY_ARRAY && t2->ty == TY_ARRAY)
-        return eq_type(t1->ptr_to, t2->ptr_to);
-    else if (t1->ty == TY_STRUCT && t2->ty == TY_STRUCT)
-        return t1 == t2;
-    else
-        return t1->ty == t2->ty;
-}
-
-Func *find_func(Node *node) {
+Func *find_func(char *name) {
     int funcs_len = vec_len(func_env);
     for (int i = 0; i < funcs_len; i++) {
         Func *func = vec_at(func_env, i);
-        if (!strcmp(func->name, node->name))
+        if (!strcmp(func->name, name))
             return func;
     }
     return NULL;

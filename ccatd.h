@@ -158,6 +158,7 @@ struct Node {
     Type *type;
     Location *loc;
     Token *attr;
+    bool is_extern;
 };
 
 struct Func {
@@ -168,6 +169,7 @@ struct Func {
     Type *ret_type;
     Map *global_vars;
     Location *loc;
+    bool is_extern;
 };
 
 struct Struct {
@@ -216,6 +218,8 @@ bool is_pointer_compat(Type *type);
 Type *coerce_pointer(Type *type);
 
 Type *binary_int_op_result(Type *lhs, Type *rhs);
+
+bool eq_type(Type *t1, Type *t2);
 
 // semantic analysis
 

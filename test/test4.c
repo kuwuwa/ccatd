@@ -8,6 +8,10 @@ void try_void_return() {
     fail();
 }
 
+int fun1();
+
+extern int glov1;
+
 int main() {
     int a = 0;
     int b = 1;
@@ -56,5 +60,15 @@ int main() {
 
     void *xxx;
 
+    assert_equals(glov1, 12345);
+    assert_equals(fun1(), 0);
+
     return 0;
 }
+
+int glov1 = 12345;
+
+int fun1() {
+    return 0;
+}
+

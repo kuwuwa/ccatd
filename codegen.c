@@ -25,12 +25,17 @@ void gen_globals() {
     printf("  .data\n");
     for (int i = 0; i < vec_len(global_vars->values); i++) {
         Node *global = vec_at(global_vars->values, i);
+        if (global->is_extern)
+            continue;
 
         printf("  .globl %s\n", global->name);
     }
 
     for (int i = 0; i < vec_len(global_vars->values); i++) {
         Node *global = vec_at(global_vars->values, i);
+        if (global->is_extern)
+            continue;
+
         printf("%s:\n", global->name);
         if (global->rhs == NULL)
             printf("  .zero %d\n", type_size(global->type));
@@ -632,6 +637,9 @@ void gen_stmt(Node* node) {
 }
 
 void gen_func(Func* func) {
+    if (func->is_extern)
+        return;
+
     printf("%s:\n", func->name);
     printf("  push rbp\n"
            "  mov rbp, rsp\n");

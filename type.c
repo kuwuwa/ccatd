@@ -74,3 +74,15 @@ Type *binary_int_op_result(Type *lt, Type *rt) {
 
     return type_int;
 }
+
+bool eq_type(Type* t1, Type* t2) {
+    if (t1->ty == TY_PTR && t2->ty == TY_PTR)
+        return eq_type(t1->ptr_to, t2->ptr_to);
+    else if (t1->ty == TY_ARRAY && t2->ty == TY_ARRAY)
+        return eq_type(t1->ptr_to, t2->ptr_to);
+    else if (t1->ty == TY_STRUCT && t2->ty == TY_STRUCT)
+        return t1 == t2;
+    else
+        return t1->ty == t2->ty;
+}
+

@@ -17,7 +17,6 @@ Environment *builtin_aliases;
 Environment *aliases;
 
 void toplevel();
-Func *func(Type *typ, Token *name);
 Node *parse_struct(Node_kind kind, Location *loc);
 Type *struct_pre(Location *loc);
 Node *var_decl();
@@ -28,7 +27,7 @@ Vec *params();
 Node *stmt();
 Vec *block();
 
-// Expressions 
+// Expressions
 
 Node *rhs_expr();
 Node *array(Location *start);
@@ -109,42 +108,50 @@ void toplevel() {
         return;
     }
 
+    bool is_extern = consume_keyword("extern");
+
     Type *typ = type();
     tk = expect(TK_IDT);
     if (consume_keyword("(")) {
-        Func *f = func(typ, tk);
-        vec_push(functions, f);
+        Func *func = calloc(1, sizeof(Func));
+        func->name = tk->str;
+        func->loc = tk->loc;
+        func->params = params();
+        func->ret_type = typ;
+        if (consume_keyword(";")) {
+            func->is_extern = true;
+        } else {
+            func->is_extern = false;
+            Vec *blk = block();
+            if (is_extern)
+                error_loc(tk->loc, "prototype function declaration shouldn't have a body");
+            func->block = blk;
+            func->global_vars = map_new();
+            for (int i = 0; i < vec_len(global_vars->values); i++) {
+                Node *gvar = vec_at(global_vars->values, i);
+                map_put(func->global_vars, gvar->name, gvar);
+            }
+        }
+        vec_push(functions, func);
     } else {
         Node *node = mknode(ND_GVAR, tk->loc);
         node->name = tk->str;
+        node->is_extern = is_extern;
 
         typ = type_array(typ);
 
-        node->rhs = consume_keyword("=") ? rhs_expr() : NULL;
+        if (consume_keyword("=")) {
+            if (is_extern)
+                error_loc(tk->loc, "extern variable declaration shouldn't have a value");
+            node->rhs = rhs_expr();
+        } else
+            node->rhs = NULL;
 
         expect_keyword(";");
 
         node->type = typ;
         map_put(global_vars, node->name, node);
     }
-}
-
-Func *func(Type *typ, Token *name) {
-    Vec *par = params();
-    Vec *blk = block();
-
-    Func *func = calloc(1, sizeof(Func));
-    func->name = name->str;
-    func->params = par;
-    func->block = blk;
-    func->loc = name->loc;
-    func->ret_type = typ;
-    func->global_vars = map_new();
-    for (int i = 0; i < vec_len(global_vars->values); i++) {
-        Node *gvar = vec_at(global_vars->values, i);
-        map_put(func->global_vars, gvar->name, gvar);
-    }
-    return func;
 }
 
 Type *struct_pre(Location *start) {

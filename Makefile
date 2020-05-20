@@ -16,10 +16,4 @@ test: build
 clean:
 	rm -f ccatd $(patsubst %.c,%.o,$(SRCS)) _*
 
-b: build
-
-c: clean
-
-t: test
-
 .PHONY: test clean
