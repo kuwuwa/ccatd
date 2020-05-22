@@ -45,7 +45,8 @@ Node *shift();
 Node *add();
 Node *mul();
 Node *unary();
-Node *term();
+Node *postfix();
+Node *primary();
 Vec *args();
 
 // Parse helpers
@@ -493,15 +494,50 @@ Node *mul() {
 Node *unary() {
     Token *tk;
     return (tk = consume_keyword("sizeof")) ? binop(ND_SIZEOF, unary(), NULL, tk->loc)
-         : consume_keyword("+")             ? term()
-         : (tk = consume_keyword("-"))      ? binop(ND_SUB, mknum(0, tk->loc), term(), tk->loc)
+         : (tk = consume_keyword("++"))     ? binop(ND_PREINCR, unary(), NULL, tk->loc)
+         : (tk = consume_keyword("--"))     ? binop(ND_PREDECR, unary(), NULL, tk->loc)
+         : consume_keyword("+")             ? unary()
+         : (tk = consume_keyword("-"))      ? binop(ND_SUB, mknum(0, tk->loc), unary(), tk->loc)
          : (tk = consume_keyword("&"))      ? binop(ND_ADDR, mul(), NULL, tk->loc)
          : (tk = consume_keyword("*"))      ? binop(ND_DEREF, mul(), NULL, tk->loc)
          : (tk = consume_keyword("!"))      ? binop(ND_NEG, unary(), NULL, tk->loc)
-         : term();
+         : postfix();
 }
 
-Node *term() {
+Node *postfix() {
+    Node *node = primary();
+    for (Token *tk;;) {
+        if ((tk = consume_keyword("["))) {
+            Node *index_node = expr();
+            expect_keyword("]");
+
+            Node *add_node = binop(ND_ADD, node, index_node, tk->loc);
+            Node *next_node = mknode(ND_DEREF, tk->loc);
+            next_node->lhs = add_node;
+            node = next_node;
+        } else if ((tk = consume_keyword("."))) {
+            Token *attr = expect(TK_IDT);
+            Node *attr_node = binop(ND_ATTR, node, NULL, tk->loc);
+            attr_node->attr = attr;
+            node = attr_node;
+        } else if ((tk = consume_keyword("->"))) {
+            Token *attr = expect(TK_IDT);
+            Node *l = binop(ND_DEREF, node, NULL, tk->loc);
+            Node *next_node = binop(ND_ATTR, l, NULL, tk->loc);
+            next_node->attr = attr;
+            node = next_node;
+        } else if ((tk = consume_keyword("++")))
+            node = binop(ND_POSTINCR, node, NULL, tk->loc);
+        else if ((tk = consume_keyword("--")))
+            node = binop(ND_POSTDECR, node, NULL, tk->loc);
+        else
+            break;
+    }
+
+    return node;
+}
+
+Node *primary() {
     Token *tk = NULL;
     Node *node = NULL;
     if ((tk = consume_keyword("("))) {
@@ -533,30 +569,6 @@ Node *term() {
     if (node == NULL) {
         tk = lookahead_any();
         error_loc(tk->loc, "invalid expression or statement");
-    }
-
-    for (Token *tk;;) {
-        if ((tk = consume_keyword("["))) {
-            Node *index_node = expr();
-            expect_keyword("]");
-
-            Node *add_node = binop(ND_ADD, node, index_node, tk->loc);
-            Node *next_node = mknode(ND_DEREF, tk->loc);
-            next_node->lhs = add_node;
-            node = next_node;
-        } else if ((tk = consume_keyword("."))) {
-            Token *attr = expect(TK_IDT);
-            Node *attr_node = binop(ND_ATTR, node, NULL, tk->loc);
-            attr_node->attr = attr;
-            node = attr_node;
-        } else if ((tk = consume_keyword("->"))) {
-            Token *attr = expect(TK_IDT);
-            Node *l = binop(ND_DEREF, node, NULL, tk->loc);
-            Node *next_node = binop(ND_ATTR, l, NULL, tk->loc);
-            next_node->attr = attr;
-            node = next_node;
-        } else
-            break;
     }
 
     return node;

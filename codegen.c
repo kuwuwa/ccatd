@@ -411,6 +411,7 @@ void gen(Node *node) {
                "  cmp rax, 0\n");
         printf("  je .L%s_end\n", label_base);
         printf("# while body\n");
+        stack_depth -= 8;
         gen_stmt(node->body);
         printf("  jmp .L%s_cont\n", label_base);
         printf(".L%s_end:\n", label_base);
@@ -560,6 +561,30 @@ void gen(Node *node) {
         }
         printf("  push rax\n");
         stack_depth += 8;
+        return;
+    }
+
+    if (node->kind == ND_PREINCR || node->kind == ND_PREDECR) {
+        int sign = node->kind == ND_PREINCR ? 1 : -1;
+        int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
+        gen_lval(node->lhs);
+        printf("  mov rdi, [rax]\n"
+               "  add rdi, %d\n", incr);
+        printf("  mov [rax], rdi\n"
+               "  mov rax, rdi\n"
+               "  mov [rsp], rdi\n");
+        return;
+    }
+
+    if (node->kind == ND_POSTINCR || node->kind == ND_POSTDECR) {
+        int sign = node->kind == ND_POSTINCR ? 1 : -1;
+        int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
+        gen_lval(node->lhs);
+        printf("  mov rdi, [rax]\n"
+               "  mov [rsp], rdi\n"
+               "  add rdi, %d\n", incr);
+        printf("  mov [rax], rdi\n"
+               "  mov rax, [rsp]\n");
         return;
     }
 

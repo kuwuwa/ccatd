@@ -51,6 +51,10 @@ bool is_integer(Type *t) {
     return t->ty == TY_INT || t->ty == TY_CHAR;
 }
 
+bool is_pointer(Type *t) {
+    return t->ty == TY_PTR;
+}
+
 bool is_pointer_compat(Type *t) {
     return t->ty == TY_PTR || t->ty == TY_ARRAY;
 }

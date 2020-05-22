@@ -441,6 +441,15 @@ void sema_expr(Node* node, Func *func) {
         }
         error_loc(node->loc, "[semantic] the given attribute doesn't exist");
     }
+    if (node->kind == ND_PREINCR || node->kind == ND_PREDECR ||
+            node->kind == ND_POSTINCR || node->kind == ND_POSTDECR) {
+        sema_lval(node->lhs, func);
+        Type *lty = node->lhs->type;
+        node->type = lty;
+        if (is_integer(lty) || lty->ty == TY_PTR) 
+            return;
+        error_loc(node->loc, "[semantic] unexpected type of value in increment/decrement expression");
+    }
 
     sema_expr(node->lhs, func);
     sema_expr(node->rhs, func);
@@ -554,6 +563,7 @@ void sema_expr(Node* node, Func *func) {
         else
             error_loc(node->loc, "[semantic] type mismatch in a right shift expression");
     }
+
     error_loc(node->loc, "unsupported feature");
 }
 
@@ -576,7 +586,7 @@ void sema_array(Type* ty, Node* arr, Func *func) {
 void sema_lval(Node *node, Func *func) {
     Node_kind k = node->kind;
     if (k != ND_VAR && k != ND_GVAR && k != ND_DEREF && k != ND_ATTR)
-        error_loc(node->loc, "[semantic] should be left value");
+        error_loc(node->loc, "[semantic] should be lvalue");
     sema_expr(node, func);
 }
 

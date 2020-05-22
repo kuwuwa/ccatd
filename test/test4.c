@@ -1,8 +1,6 @@
 
 void fail() {
-    assert_equals(0, 1);
-}
-
+    assert_equals(0, 1); } 
 void try_void_return() {
     return;
     fail();
@@ -63,6 +61,23 @@ int main() {
     assert_equals(glov1, 12345);
     assert_equals(fun1(), 0);
 
+    int ia = 0;
+    int ib = 2;
+    assert_equals(++ia, --ib);
+    assert_equals(ia, 1);
+    assert_equals(ib--, 1);
+    assert_equals(ib, 0);
+
+    int arr[3] = {1, 10, 100};
+    int *p = arr;
+    assert_equals(*(p++), 1);
+    assert_equals(*(p++), 10);
+    assert_equals(*(p++), 100);
+    p = arr;
+    assert_equals(*(++p), 10);
+    assert_equals(*(++p), 100);
+    assert_equals(*(--p), 10);
+    assert_equals(*(--p), 1);
     return 0;
 }
 

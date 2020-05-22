@@ -133,6 +133,10 @@ typedef enum {
     ND_STRING,
     ND_ARRAY,
     ND_ATTR,
+    ND_PREINCR,
+    ND_POSTINCR,
+    ND_PREDECR,
+    ND_POSTDECR,
 
     // statements
     ND_VARDECL,
@@ -212,6 +216,8 @@ int type_size(Type *type);
 bool is_int(Type *type);
 
 bool is_integer(Type *type);
+
+bool is_pointer(Type *type);
 
 bool is_pointer_compat(Type *type);
 
