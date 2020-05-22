@@ -337,7 +337,7 @@ Type *type_array(Type *t) {
     return t;
 }
 
-// Expressions 
+// Expressions
 
 Node *rhs_expr() {
     Token *tk = NULL;
@@ -512,8 +512,7 @@ Node *postfix() {
             expect_keyword("]");
 
             Node *add_node = binop(ND_ADD, node, index_node, tk->loc);
-            Node *next_node = mknode(ND_DEREF, tk->loc);
-            next_node->lhs = add_node;
+            Node *next_node = binop(ND_DEREF, add_node, NULL, tk->loc);
             node = next_node;
         } else if ((tk = consume_keyword("."))) {
             Token *attr = expect(TK_IDT);
@@ -628,7 +627,7 @@ Token *consume_identifier() {
         return tk;
     }
     return NULL;
-} 
+}
 
 Token *expect(Token_kind kind) {
     Token *tk = lookahead_any();
@@ -654,7 +653,7 @@ Token *lookahead_type(char* str) {
 bool lookahead_var_decl() {
     Token *tk;
     return lookahead_keyword("struct") != NULL
-        || (((tk = lookahead(TK_IDT)) != NULL)
+        || ((tk = lookahead(TK_IDT)) != NULL
                 && env_find(aliases, tk->str) != NULL);
 }
 

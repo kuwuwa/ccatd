@@ -2,7 +2,7 @@
 
 #include "ccatd.h"
 
-Vec *func_env;
+Map *func_env;
 Map *global_env;
 Environment *local_vars;
 int loop_id = 0;
@@ -19,7 +19,7 @@ void sema_const_array(Type*, Node*);
 
 // Functions, statements and expressions
 
-void sema_func(Func*);
+void sema_func(Func *func);
 void sema_block(Vec*, Func*);
 void sema_stmt(Node*, Func*);
 void sema_expr(Node*, Func*);
@@ -28,9 +28,8 @@ void sema_array(Type*, Node*, Func*);
 
 // Helpers
 
-bool assignable(Type*, Type*);
-bool eq_type(Type*, Type*);
-Func *find_func(char *name);
+bool assignable(Type *lhs, Type *rhs);
+bool eq_type(Type *lhs, Type *rhs);
 char *gen_loop_label(char *prefix);
 
 // Global
@@ -174,11 +173,11 @@ void sema_func(Func *func) {
     }
 
     if (func->is_extern) {
-        vec_push(func_env, func);
+        map_put(func_env, func->name, func);
         return;
     }
 
-    Func *g = find_func(func->name);
+    Func *g = map_find(func_env, func->name);
     if (g != NULL) {
         if (!g->is_extern)
             error_loc(func->loc, "[semantic] a name conflict between functions");
@@ -195,7 +194,7 @@ void sema_func(Func *func) {
             error_loc(func->loc, "[semantic] function signature doesn't match with a previous declaration");
     }
 
-    vec_push(func_env, func);
+    map_put(func_env, func->name, func);
 
     // block
     local_vars = env_new(NULL);
@@ -258,14 +257,11 @@ void sema_stmt(Node *node, Func *func) {
         return;
     }
     if (node->kind == ND_RETURN) {
-        if (node->lhs == NULL) {
-            if (!eq_type(func->ret_type, type_void))
-                error_loc(node->loc, "[semantic] type mismatch in a return statement");
-        } else {
-            sema_expr(node->lhs, func);
-            if (!eq_type(node->lhs->type, func->ret_type))
-                error_loc(node->loc, "[semantic] type mismatch in a return statement");
-        }
+        Type *typ = node->lhs == NULL
+            ? type_void
+            : (sema_expr(node->lhs, func), node->lhs->type);
+        if (!eq_type(typ, func->ret_type))
+            error_loc(node->loc, "[semantic] type mismatch in a return statement");
         return;
     }
     if (node->kind == ND_IF) {
@@ -324,25 +320,59 @@ void sema_stmt(Node *node, Func *func) {
     sema_expr(node, func);
 }
 
+Type *sema_expr_arith(Node_kind kind, Node *lhs, Node *rhs, Location *loc) {
+    Type* lty = lhs->type;
+    Type* rty = rhs->type;
+    Type *ret;
+    switch (kind) {
+    case ND_ADD:
+        if ((ret = binary_int_op_result(lty, rty)) != NULL)
+            return ret;
+        if (is_pointer_compat(lty) && is_integer(rty))
+            return coerce_pointer(lty);
+        if (is_integer(lty) && is_pointer_compat(rty))
+            return coerce_pointer(rty);
+        error_loc(loc, "unsupported addition");
+    case ND_SUB:
+        if ((ret = binary_int_op_result(lty, rty)) != NULL)
+            return ret;
+        if (is_pointer_compat(lty) && is_int(rty))
+            return coerce_pointer(lty);
+        error_loc(loc, "unsupported subtraction");
+    case ND_MUL:
+        if ((ret = binary_int_op_result(lty, rty)) != NULL)
+            return ret;
+        error_loc(loc, "unsupported multiplication");
+    case ND_DIV:
+        if ((ret = binary_int_op_result(lty, rty)) != NULL)
+            return ret;
+        error_loc(loc, "unsupported division");
+    case ND_MOD:
+        if ((ret = binary_int_op_result(lty, rty)) != NULL)
+            return ret;
+        error_loc(loc, "[semantic] unsupported modulo");
+    case ND_EQ: case ND_NEQ:
+    case ND_LT: case ND_LTE:
+    case ND_LAND: case ND_LOR: // TODO: Probably some check is needed
+        return type_int;
+    case ND_IOR: case ND_XOR: case ND_AND:
+        if ((ret = binary_int_op_result(lty, rty)) != NULL)
+            return ret;
+        error_loc(loc, "[semantic] type mismatch in an AND/OR expression");
+    case ND_LSH: case ND_RSH:
+        if (binary_int_op_result(lty, rty) == NULL)
+            error_loc(loc, "[semantic] type mismatch in a shift expression");
+        return lty;
+    default:
+        return NULL;
+    }
+}
+
 void sema_expr(Node* node, Func *func) {
-    // ND_NUM,
-    if (node->kind == ND_NUM) {
-        eq_type(type_int, node->type);
+    switch (node->kind) {
+    case ND_NUM: case ND_STRING: case ND_CHAR:
         return;
-    }
-    // ND_STRING
-    if (node->kind == ND_STRING) {
-        if (!eq_type(type_ptr_char, node->type))
-            error_loc(node->loc, "[internal] string");
-        return;
-    }
-    if (node->kind == ND_CHAR) {
-        if (!eq_type(type_char, node->type))
-            error_loc(node->loc, "[internal] char");
-        return;
-    }
-    // ND_VAR,
-    if (node->kind == ND_VAR) {
+    case ND_VAR: {
         Node *resolved_local = env_find(local_vars, node->name);
         if (resolved_local != NULL) {
             // node->type = resolved_local->type;
@@ -356,51 +386,39 @@ void sema_expr(Node* node, Func *func) {
         *node = *resolved_global;
         return;
     }
-    // ND_SEQ
-    if (node->kind == ND_SEQ) {
+    case ND_SEQ:
         sema_expr(node->lhs, func);
         sema_expr(node->rhs, func);
         node->type = node->rhs->type;
         return;
-    }
-    // ND_ASGN,
-    if (node->kind == ND_ASGN) {
+    case ND_ASGN:
         sema_lval(node->lhs, func);
         sema_expr(node->rhs, func);
         if (!assignable(node->lhs->type, node->rhs->type))
             error_loc(node->loc, "[semantic] type mismatch in an assignment statment");
         node->type = node->lhs->type;
         return;
-    }
-    // ND_ADDR,
-    if (node->kind == ND_ADDR) {
+    case ND_ADDR:
         sema_lval(node->lhs, func);
         node->type = ptr_of(node->lhs->type);
         return;
-    }
-    // ND_DEREF,
-    if (node->kind == ND_DEREF) {
+    case ND_DEREF:
         sema_expr(node->lhs, func);
         if (!is_pointer_compat(node->lhs->type))
             error_loc(node->loc, "dereferencing non-pointer is not allowed");
         node->type = node->lhs->type->ptr_to;
         return;
-    }
-    // ND_SIZEOF
-    if (node->kind == ND_SIZEOF) {
+    case ND_SIZEOF:
         sema_expr(node->lhs, func);
         node->type = type_int;
         node->val = type_size(node->lhs->type);
         return;
-    }
-    if (node->kind == ND_NEG) {
+    case ND_NEG:
         sema_expr(node->lhs, func);
-        node->type = type_int;
+        node->type = node->lhs->type;
         return;
-    }
-    // ND_CALL,
-    if (node->kind == ND_CALL) {
-        Func *f = find_func(node->name);
+    case ND_CALL: {
+        Func *f = map_find(func_env, node->name);
         if (f == NULL)
             error_loc(node->loc, "undefined function");
 
@@ -413,7 +431,7 @@ void sema_expr(Node* node, Func *func) {
         node->type = f->ret_type;
         return;
     }
-    if (node->kind == ND_COND) {
+    case ND_COND:
         sema_expr(node->cond, func);
         sema_expr(node->lhs, func);
         sema_expr(node->rhs, func);
@@ -421,8 +439,7 @@ void sema_expr(Node* node, Func *func) {
         if (!eq_type(node->lhs->type, node->rhs->type))
             error_loc(node->loc, "[semantic] type mismatch in a conditional expression");
         return;
-    }
-    if (node->kind == ND_ATTR) {
+    case ND_ATTR: {
         sema_expr(node->lhs, func);
         if (node->lhs->type->ty != TY_STRUCT)
             error_loc(node->loc, "[semantic] attribute access to a non-struct value");
@@ -441,128 +458,23 @@ void sema_expr(Node* node, Func *func) {
         }
         error_loc(node->loc, "[semantic] the given attribute doesn't exist");
     }
-    if (node->kind == ND_PREINCR || node->kind == ND_PREDECR ||
-            node->kind == ND_POSTINCR || node->kind == ND_POSTDECR) {
+    case ND_PREINCR: case ND_PREDECR: case ND_POSTINCR: case ND_POSTDECR: {
         sema_lval(node->lhs, func);
         Type *lty = node->lhs->type;
         node->type = lty;
-        if (is_integer(lty) || lty->ty == TY_PTR) 
+        if (is_integer(lty) || lty->ty == TY_PTR)
             return;
         error_loc(node->loc, "[semantic] unexpected type of value in increment/decrement expression");
+    }
+    default:
+        break;
     }
 
     sema_expr(node->lhs, func);
     sema_expr(node->rhs, func);
-    Type* lty = node->lhs->type;
-    Type* rty = node->rhs->type;
-    // ND_ADD,
-    if (node->kind == ND_ADD) {
-        if (is_int(lty) && is_int(rty))
-            node->type = type_int;
-        else if (is_pointer_compat(lty) && is_int(rty))
-            node->type = coerce_pointer(lty);
-        else if (is_int(lty) && is_pointer_compat(rty))
-            node->type = coerce_pointer(rty);
-        else
-            error_loc(node->loc, "unsupported addition");
+    node->type = sema_expr_arith(node->kind, node->lhs, node->rhs, node->loc);
+    if (node->type != NULL)
         return;
-    }
-    // ND_SUB,
-    if (node->kind == ND_SUB) {
-        if (is_int(lty) && is_int(rty))
-            node->type = type_int;
-        else if (is_pointer_compat(lty) && is_int(rty))
-            node->type = coerce_pointer(lty);
-        else
-            error_loc(node->loc, "unsupported subtraction");
-        return;
-    }
-    // ND_MUL,
-    if (node->kind == ND_MUL) {
-        if (is_int(lty) && is_int(rty))
-            node->type = type_int;
-        else
-            error_loc(node->loc, "unsupported multiplication");
-        return;
-    }
-    // ND_DIV,
-    if (node->kind == ND_DIV) {
-        if (is_int(lty) && is_int(rty))
-            node->type = type_int;
-        else
-            error_loc(node->loc, "unsupported division");
-        return;
-    }
-    // ND_MOD
-    if (node->kind == ND_MOD) {
-        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
-            return;
-        else
-            error_loc(node->loc, "[semantic] unsupported modulo");
-    }
-    // ND_EQ,
-    if (node->kind == ND_EQ) {
-        node->type = type_int;
-        return;
-    }
-    // ND_NEQ,
-    if (node->kind == ND_NEQ) {
-        node->type = type_int;
-        return;
-    }
-    // ND_LT,
-    if (node->kind == ND_LT) {
-        node->type = type_int;
-        return;
-    }
-    // ND_LTE,
-    if (node->kind == ND_LTE) {
-        node->type = type_int;
-        return;
-    }
-    // ND_LAND
-    if (node->kind == ND_LAND) {
-        node->type = type_int;
-        return;
-    }
-    // ND_LAND
-    if (node->kind == ND_LOR) {
-        node->type = type_int;
-        return;
-    }
-    // ND_IOR
-    if (node->kind == ND_IOR) {
-        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
-            return;
-        else
-            error_loc(node->loc, "[semantic] type mismatch in an inclusive OR expression");
-    }
-    // ND_XOR
-    if (node->kind == ND_XOR) {
-        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
-            return;
-        else
-            error_loc(node->loc, "[semantic] type mismatch in an exclusive OR expression");
-    }
-    // ND_AND
-    if (node->kind == ND_AND) {
-        if ((node->type = binary_int_op_result(lty, rty)) != NULL)
-            return;
-        else
-            error_loc(node->loc, "[semantic] type mismatch in an AND expression");
-    }
-    if (node->kind == ND_LSH) {
-        if ((node->type = lty) != NULL)
-            return;
-        else
-            error_loc(node->loc, "[semantic] type mismatch in a left shift expression");
-    }
-    if (node->kind == ND_RSH) {
-        if ((node->type = lty) != NULL)
-            return;
-        else
-            error_loc(node->loc, "[semantic] type mismatch in a right shift expression");
-    }
 
     error_loc(node->loc, "unsupported feature");
 }
@@ -607,16 +519,6 @@ bool assignable(Type *lhs, Type *rhs) {
 
     error("[internal] assignable: unsupported type appeared");
     return false;
-}
-
-Func *find_func(char *name) {
-    int funcs_len = vec_len(func_env);
-    for (int i = 0; i < funcs_len; i++) {
-        Func *func = vec_at(func_env, i);
-        if (!strcmp(func->name, name))
-            return func;
-    }
-    return NULL;
 }
 
 char *gen_loop_label(char *prefix) {

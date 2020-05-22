@@ -21,7 +21,7 @@ void push_function(char *name, Type **arg_types, int argc, Type *ret_type) {
         append_type_param(func->params, arg_types[i]);
     func->ret_type = ret_type;
 
-    vec_push(func_env, func);
+    map_put(func_env, name, func);
 }
 
 void init() {
@@ -54,7 +54,7 @@ void init() {
 
     // semantic
 
-    func_env = vec_new();
+    func_env = map_new();
     push_function(
             "foo",
             NULL,

@@ -229,7 +229,7 @@ bool eq_type(Type *t1, Type *t2);
 
 // semantic analysis
 
-extern Vec *func_env;
+extern Map *func_env;
 
 void sema_globals();
 
