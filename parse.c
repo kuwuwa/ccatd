@@ -64,6 +64,8 @@ bool lookahead_var_decl();
 Type *consume_type_identifier();
 Type *consume_type_pre();
 
+bool is_unary(Node *node);
+
 // Node helpers
 
 Node *mknode(Node_kind kind, Location *loc);
@@ -373,7 +375,28 @@ Node *assignment() {
     Node *node = conditional();
     Token *tk;
     if ((tk = consume_keyword("=")))
-        node = binop(ND_ASGN, node, expr(), tk->loc);
+        return binop(ND_ASGN, node, assignment(), tk->loc);
+    if ((tk = consume_keyword("+=")))
+        return binop(ND_ADDEQ, node, assignment(), tk->loc);
+    if ((tk = consume_keyword("-=")))
+        return binop(ND_SUBEQ, node, assignment(), tk->loc);
+    if ((tk = consume_keyword("*=")))
+        return binop(ND_MULEQ, node, assignment(), tk->loc);
+    if ((tk = consume_keyword("/=")))
+        return binop(ND_DIVEQ, node, assignment(), tk->loc);
+    if ((tk = consume_keyword("%=")))
+        return binop(ND_MODEQ, node, assignment(), tk->loc);
+    if ((tk = consume_keyword("<<=")))
+        return binop(ND_LSHEQ, node, assignment(), tk->loc);
+    if ((tk = consume_keyword(">>=")))
+        return binop(ND_RSHEQ, node, assignment(), tk->loc);
+    if ((tk = consume_keyword("&=")))
+        return binop(ND_ANDEQ, node, assignment(), tk->loc);
+    if ((tk = consume_keyword("|=")))
+        return binop(ND_IOREQ, node, assignment(), tk->loc);
+    if ((tk = consume_keyword("^=")))
+        return binop(ND_XOREQ, node, assignment(), tk->loc);
+
     return node;
 }
 

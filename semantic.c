@@ -320,11 +320,18 @@ void sema_stmt(Node *node, Func *func) {
     sema_expr(node, func);
 }
 
-Type *sema_expr_arith(Node_kind kind, Node *lhs, Node *rhs, Location *loc) {
-    Type* lty = lhs->type;
-    Type* rty = rhs->type;
+Type *sema_expr_arith(Node *node, Func *func) {
+    if (!(ND_ADD <= node->kind && node->kind <= ND_LOR))
+        return NULL;
+
+    sema_expr(node->lhs, func);
+    sema_expr(node->rhs, func);
+    Type* lty = node->lhs->type;
+    Type* rty = node->rhs->type;
+    Location *loc = node->loc;
+
     Type *ret;
-    switch (kind) {
+    switch (node->kind) {
     case ND_ADD:
         if ((ret = binary_int_op_result(lty, rty)) != NULL)
             return ret;
@@ -366,6 +373,56 @@ Type *sema_expr_arith(Node_kind kind, Node *lhs, Node *rhs, Location *loc) {
     default:
         return NULL;
     }
+}
+
+Type *sema_expr_assign(Node *node, Func *func) {
+    if (!(ND_ADDEQ <= node->kind && node->kind <= ND_XOREQ))
+        return NULL;
+
+    sema_lval(node->lhs, func);
+    sema_expr(node->rhs, func);
+    Type* lty = node->lhs->type;
+    Type* rty = node->rhs->type;
+    Location *loc = node->loc;
+
+    switch (node->kind) {
+    case ND_ADDEQ:
+        if (binary_int_op_result(lty, rty) != NULL)
+            return lty;
+        if (is_pointer(lty) && is_integer(rty))
+            return lty;
+        error_loc(loc, "[semantic] unsupported addition");
+    case ND_SUBEQ:
+        if (binary_int_op_result(lty, rty) != NULL)
+            return lty;
+        if (is_pointer(lty) && is_int(rty))
+            return lty;
+        error_loc(loc, "[semantic] unsupported subtraction");
+    case ND_MULEQ:
+        if (binary_int_op_result(lty, rty) != NULL)
+            return lty;
+        error_loc(loc, "[semantic] unsupported multiplication");
+    case ND_DIVEQ:
+        if (binary_int_op_result(lty, rty) != NULL)
+            return lty;
+        error_loc(loc, "[semantic] unsupported division");
+    case ND_MODEQ:
+        if (binary_int_op_result(lty, rty) != NULL)
+            return lty;
+        error_loc(loc, "[semantic] unsupported modulo");
+    case ND_LSHEQ: case ND_RSHEQ:
+        if (binary_int_op_result(lty, rty) == NULL)
+            error_loc(loc, "[semantic] type mismatch in a shift expression");
+        return lty;
+    case ND_ANDEQ: case ND_IOREQ: case ND_XOREQ:
+        if (binary_int_op_result(lty, rty) != NULL)
+            return lty;
+        error_loc(loc, "[semantic] type mismatch in an AND/OR expression");
+    default:
+        break;
+    }
+
+    return NULL;
 }
 
 void sema_expr(Node* node, Func *func) {
@@ -470,9 +527,11 @@ void sema_expr(Node* node, Func *func) {
         break;
     }
 
-    sema_expr(node->lhs, func);
-    sema_expr(node->rhs, func);
-    node->type = sema_expr_arith(node->kind, node->lhs, node->rhs, node->loc);
+    node->type = sema_expr_arith(node, func);
+    if (node->type != NULL)
+        return;
+
+    node->type = sema_expr_assign(node, func);
     if (node->type != NULL)
         return;
 

@@ -78,6 +78,29 @@ int main() {
     assert_equals(*(++p), 100);
     assert_equals(*(--p), 10);
     assert_equals(*(--p), 1);
+
+    int au = 3;
+    assert_equals(au += 5, 8);
+    assert_equals(au, 8);
+    assert_equals(au -= 2, 6);
+    assert_equals(au, 6);
+    assert_equals(au *= 3, 18);
+    assert_equals(au, 18);
+    assert_equals(au <<= 1, 36);
+    assert_equals(au, 36);
+    assert_equals(au >>= 2, 9);
+    assert_equals(au, 9);
+    assert_equals(au |= 21, 29);
+    assert_equals(au, 29);
+    assert_equals(au &= 23, 21);
+    assert_equals(au, 21);
+    assert_equals(au ^= 7, 18);
+    assert_equals(au, 18);
+    assert_equals(au %= 11, 7);
+    assert_equals(au, 7);
+    assert_equals(au /= 2, 3);
+    assert_equals(au, 3);
+
     return 0;
 }
 

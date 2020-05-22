@@ -184,7 +184,7 @@ Node *gen_const_calc(Node *node) {
 int label_num = 0;
 int stack_depth = 0;
 
-void gen(Node *node) {
+void gen_expr(Node *node) {
     if (node->kind == ND_NUM) {
         // assuming `int'
         printf("  mov eax, %d\n", node->val);
@@ -284,7 +284,7 @@ void gen(Node *node) {
             printf("  movsx eax, BYTE PTR [rax]\n");
         else if (size == 4)
             printf("  mov eax, [rax]\n");
-        else 
+        else
             printf("  mov rax, [rax]\n");
         printf("  push rax\n");
         return;
@@ -304,7 +304,7 @@ void gen(Node *node) {
                 printf("  movsx eax, BYTE PTR [rax]\n");
             else if (size == 4)
                 printf("  mov eax, [rax]\n");
-            else 
+            else
                 printf("  mov rax, [rax]\n");
         }
         printf("  push rax\n");
@@ -328,6 +328,262 @@ void gen(Node *node) {
         return;
     }
 
+    if (node->kind == ND_GVAR) {
+        if (node->type->ty == TY_ARRAY) {
+            printf("  mov rax, OFFSET FLAT:%s\n", node->name);
+        } else {
+            char *ax = ax_of_type(node->type);
+            char *wo = word_of_type(node->type);
+            printf("  mov %s, %s PTR %s[rip]\n", ax, wo, node->name);
+        }
+
+        printf("  push rax\n");
+        stack_depth += 8;
+        return;
+    }
+
+    if (node->kind == ND_COND) {
+        gen(node->cond); // +8
+        printf("  pop rax\n"
+               "  cmp rax, 0\n"
+               "  je .Lcond_else%d\n", label_num);
+        stack_depth -= 8;
+        gen(node->lhs); // +8
+        printf("  jmp .Lcond_end%d\n"
+               ".Lcond_else%d:\n", label_num, label_num);
+        gen(node->rhs); // +8
+        printf(".Lcond_end%d:\n", label_num);
+
+        stack_depth -= 8;
+        label_num++;
+        return;
+    }
+
+    if (node->kind == ND_LAND) {
+        printf("# logical AND operation\n");
+        gen(node->lhs);
+        printf("  cmp rax, 0\n"
+               "  je .Land_end%d\n", label_num);
+        printf("  pop rax\n");
+        gen(node->rhs);
+        printf("  cmp rax, 0\n"
+               "  je .Land_end%d\n", label_num);
+        printf("  pop rax\n"
+               "  push 1\n");
+        printf(".Land_end%d:\n", label_num);
+
+        stack_depth += 8;
+        label_num++;
+        return;
+    }
+
+    if (node->kind == ND_LOR) {
+        printf("# logical OR operation\n");
+        gen(node->lhs);
+        printf("  cmp rax, 0\n"
+               "  jne .Lor_true%d\n", label_num);
+        printf("  pop rax\n");
+        gen(node->rhs);
+        printf("  cmp rax, 0\n"
+               "  je .Lor_end%d\n", label_num);
+        printf(".Lor_true%d:\n", label_num);
+        printf("  pop rax\n"
+               "  push 1\n");
+        printf(".Lor_end%d:\n", label_num);
+
+        stack_depth += 8;
+        label_num++;
+        return;
+    }
+
+    if (node->kind == ND_LSH || node->kind == ND_RSH) {
+        printf("# prepare shift\n");
+        gen(node->lhs);
+        printf("# right hand side\n");
+        gen(node->rhs);
+        printf("  pop rcx\n");
+        printf("  pop rax\n");
+        stack_depth -= 16;
+        char *ax = ax_of_type(node->lhs->type);
+        switch (node->kind) {
+            case ND_LSH:
+                printf("  shl %s, cl\n", ax);
+                break;
+            case ND_RSH:
+                printf("  shr %s, cl\n", ax);
+                break;
+            default:
+                error("[internal] unreachable");
+        }
+        printf("  push rax\n");
+        stack_depth += 8;
+        return;
+    }
+
+    if (node->kind == ND_PREINCR || node->kind == ND_PREDECR) {
+        int sign = node->kind == ND_PREINCR ? 1 : -1;
+        int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
+        gen_lval(node->lhs);
+        printf("  mov rdi, [rax]\n"
+               "  add rdi, %d\n", incr);
+        printf("  mov [rax], rdi\n"
+               "  mov rax, rdi\n"
+               "  mov [rsp], rdi\n");
+        return;
+    }
+
+    if (node->kind == ND_POSTINCR || node->kind == ND_POSTDECR) {
+        int sign = node->kind == ND_POSTINCR ? 1 : -1;
+        int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
+        gen_lval(node->lhs);
+        printf("  mov rdi, [rax]\n"
+               "  mov [rsp], rdi\n"
+               "  add rdi, %d\n", incr);
+        printf("  mov [rax], rdi\n"
+               "  mov rax, [rsp]\n");
+        return;
+    }
+
+    if (ND_ADDEQ <= node->kind && node->kind <= ND_XOREQ) {
+        printf("# prepare assignment operation\n");
+        gen_lval(node->lhs);
+        printf("# prepare assignment operation; right hand side\n");
+        gen(node->rhs);
+
+        switch (node->kind) {
+            case ND_LSHEQ: case ND_RSHEQ: {
+                printf("  pop rcx\n"
+                       "  mov rdi, [rsp]\n"
+                       "  mov %s, [rdi]\n", ax_of_type(node->lhs->type));
+                stack_depth -= 8;
+                char *ax = ax_of_type(node->lhs->type);
+                switch (node->kind) {
+                    case ND_LSHEQ:
+                        printf("  shl %s, cl\n", ax);
+                        break;
+                    case ND_RSHEQ:
+                        printf("  shr %s, cl\n", ax);
+                        break;
+                    default:
+                        error("[internal] unreachable");
+                }
+                printf("  mov [rdi], rax\n"
+                       "  mov [rsp], rax\n");
+                break;
+            }
+            default:
+                printf("  pop rdi\n"
+                       "  mov rax, [rsp]\n"
+                       "  mov %s, [rax]\n", ax_of_type(node->lhs->type));
+                stack_depth -= 8;
+                switch (node->kind) {
+                    case ND_ADDEQ:
+                        gen_coeff_ptr(node->lhs->type, node->rhs->type);
+                        printf("  add rax, rdi\n");
+                        break;
+                    case ND_SUBEQ:
+                        gen_coeff_ptr(node->lhs->type, node->rhs->type);
+                        printf("  sub rax, rdi\n");
+                        break;
+                    case ND_MULEQ:
+                        printf("  imul rax, rdi\n");
+                        break;
+                    case ND_DIVEQ:
+                        printf("# diveq\n");
+                        printf("  cqo\n"
+                               "  idiv rdi\n");
+                        break;
+                    case ND_MODEQ:
+                        printf("# modeq\n");
+                        printf("  cqo\n"
+                               "  idiv rdi\n"
+                               "  mov rax, rdx\n");
+                        break;
+                    case ND_IOREQ:
+                        printf("  or rax, rdi\n");
+                        break;
+                    case ND_XOREQ:
+                        printf("  xor rax, rdi\n");
+                        break;
+                    case ND_ANDEQ:
+                        printf("  and rax, rdi\n");
+                        break;
+                    default:
+                        error("[internal] unreachable\n");
+                }
+                printf("  mov rdi, [rsp]\n"
+                       "  mov [rdi], rax\n"
+                       "  mov [rsp], rax\n");
+        }
+        return;
+    }
+
+    printf("# prepare arithmetic operation\n");
+    gen(node->lhs);
+    printf("# right hand side\n");
+    gen(node->rhs);
+
+    printf("# arithmetic operation\n");
+    printf("  pop rdi\n");
+    printf("  pop rax\n");
+    stack_depth -= 16;
+
+    switch (node->kind) {
+        case ND_ADD:
+            gen_coeff_ptr(node->lhs->type, node->rhs->type);
+            printf("  add rax, rdi\n");
+            break;
+        case ND_SUB:
+            gen_coeff_ptr(node->lhs->type, node->rhs->type);
+            printf("  sub rax, rdi\n");
+            break;
+        case ND_MUL:
+            printf("  imul rax, rdi\n");
+            break;
+        case ND_DIV:
+            printf("  cqo\n"
+                   "  idiv rdi\n");
+            break;
+        case ND_MOD:
+            printf("  cqo\n"
+                   "  idiv rdi\n"
+                   "  mov rax, rdx\n");
+            break;
+        case ND_IOR:
+            printf("  or rax, rdi\n");
+            break;
+        case ND_XOR:
+            printf("  xor rax, rdi\n");
+            break;
+        case ND_AND:
+            printf("  and rax, rdi\n");
+            break;
+        default:
+            printf("  cmp rax, rdi\n");
+            switch (node->kind) {
+                case ND_EQ:
+                    printf("  sete al\n");
+                    break;
+                case ND_NEQ:
+                    printf("  setne al\n");
+                    break;
+                case ND_LT:
+                    printf("  setl al\n");
+                    break;
+                case ND_LTE:
+                    printf("  setle al\n");
+                    break;
+                default:
+                    error("should be unreachable");
+            }
+            printf("  movzb rax, al\n");
+    }
+    printf("  push rax\n");
+    printf("# end arithmetic operation\n");
+    stack_depth += 8;
+}
+
+void gen(Node *node) {
     if (node->kind == ND_VARDECL) {
         if (node->rhs == NULL)
             return;
@@ -472,185 +728,7 @@ void gen(Node *node) {
         return;
     }
 
-    if (node->kind == ND_GVAR) {
-        if (node->type->ty == TY_ARRAY) {
-            printf("  mov rax, OFFSET FLAT:%s\n", node->name);
-        } else {
-            char *ax = ax_of_type(node->type);
-            char *wo = word_of_type(node->type);
-            printf("  mov %s, %s PTR %s[rip]\n", ax, wo, node->name);
-        }
-
-        printf("  push rax\n");
-        stack_depth += 8;
-        return;
-    }
-
-
-    if (node->kind == ND_COND) {
-        gen(node->cond); // +8
-        printf("  pop rax\n"
-               "  cmp rax, 0\n"
-               "  je .Lcond_else%d\n", label_num);
-        stack_depth -= 8;
-        gen(node->lhs); // +8
-        printf("  jmp .Lcond_end%d\n"
-               ".Lcond_else%d:\n", label_num, label_num);
-        gen(node->rhs); // +8
-        printf(".Lcond_end%d:\n", label_num);
-
-        stack_depth -= 8;
-        label_num++;
-        return;
-    }
-
-    if (node->kind == ND_LAND) {
-        printf("# logical AND operation\n");
-        gen(node->lhs);
-        printf("  cmp rax, 0\n"
-               "  je .Land_end%d\n", label_num);
-        printf("  pop rax\n");
-        gen(node->rhs);
-        printf("  cmp rax, 0\n"
-               "  je .Land_end%d\n", label_num);
-        printf("  pop rax\n"
-               "  push 1\n");
-        printf(".Land_end%d:\n", label_num);
-
-        stack_depth += 8;
-        label_num++;
-        return;
-    }
-
-    if (node->kind == ND_LOR) {
-        printf("# logical OR operation\n");
-        gen(node->lhs);
-        printf("  cmp rax, 0\n"
-               "  jne .Lor_true%d\n", label_num);
-        printf("  pop rax\n");
-        gen(node->rhs);
-        printf("  cmp rax, 0\n"
-               "  je .Lor_end%d\n", label_num);
-        printf(".Lor_true%d:\n", label_num);
-        printf("  pop rax\n"
-               "  push 1\n");
-        printf(".Lor_end%d:\n", label_num);
-
-        stack_depth += 8;
-        label_num++;
-        return;
-    }
-
-    if (node->kind == ND_LSH || node->kind == ND_RSH) {
-        printf("# prepare shift\n");
-        gen(node->lhs);
-        printf("# right hand side\n");
-        gen(node->rhs);
-        printf("  pop rcx\n");
-        printf("  pop rax\n");
-        char *ax = ax_of_type(node->lhs->type);
-        switch (node->kind) {
-            case ND_LSH:
-                printf("  shl %s, cl\n", ax);
-                break;
-            case ND_RSH:
-                printf("  shr %s, cl\n", ax);
-                break;
-            default:
-                error("[internal] unreachable");
-        }
-        printf("  push rax\n");
-        stack_depth += 8;
-        return;
-    }
-
-    if (node->kind == ND_PREINCR || node->kind == ND_PREDECR) {
-        int sign = node->kind == ND_PREINCR ? 1 : -1;
-        int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
-        gen_lval(node->lhs);
-        printf("  mov rdi, [rax]\n"
-               "  add rdi, %d\n", incr);
-        printf("  mov [rax], rdi\n"
-               "  mov rax, rdi\n"
-               "  mov [rsp], rdi\n");
-        return;
-    }
-
-    if (node->kind == ND_POSTINCR || node->kind == ND_POSTDECR) {
-        int sign = node->kind == ND_POSTINCR ? 1 : -1;
-        int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
-        gen_lval(node->lhs);
-        printf("  mov rdi, [rax]\n"
-               "  mov [rsp], rdi\n"
-               "  add rdi, %d\n", incr);
-        printf("  mov [rax], rdi\n"
-               "  mov rax, [rsp]\n");
-        return;
-    }
-
-    printf("# prepare arithmetic operation\n");
-    gen(node->lhs);
-    printf("# right hand side\n");
-    gen(node->rhs);
-
-    printf("# arithmetic operation\n");
-    printf("  pop rdi\n");
-    printf("  pop rax\n");
-    stack_depth -= 16;
-
-    switch (node->kind) {
-        case ND_ADD:
-            gen_coeff_ptr(node->lhs->type, node->rhs->type);
-            printf("  add rax, rdi\n");
-            break;
-        case ND_SUB:
-            gen_coeff_ptr(node->lhs->type, node->rhs->type);
-            printf("  sub rax, rdi\n");
-            break;
-        case ND_MUL:
-            printf("  imul rax, rdi\n");
-            break;
-        case ND_DIV:
-            printf("  cqo\n"
-                   "  idiv rdi\n");
-            break;
-        case ND_MOD:
-            printf("  cqo\n"
-                   "  idiv rdi\n"
-                   "  mov rax, rdx\n");
-            break;
-        case ND_IOR:
-            printf("  or rax, rdi\n");
-            break;
-        case ND_XOR:
-            printf("  xor rax, rdi\n");
-            break;
-        case ND_AND:
-            printf("  and rax, rdi\n");
-            break;
-        default:
-            printf("  cmp rax, rdi\n");
-            switch (node->kind) {
-                case ND_EQ:
-                    printf("  sete al\n");
-                    break;
-                case ND_NEQ:
-                    printf("  setne al\n");
-                    break;
-                case ND_LT:
-                    printf("  setl al\n");
-                    break;
-                case ND_LTE:
-                    printf("  setle al\n");
-                    break;
-                default:
-                    error("should be unreachable");
-            }
-            printf("  movzb rax, al\n");
-    }
-    printf("  push rax\n");
-    printf("# end arithmetic operation\n");
-    stack_depth += 8;
+    gen_expr(node);
 }
 
 void gen_stmt(Node* node) {
