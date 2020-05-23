@@ -218,23 +218,14 @@ extern Type *type_ptr_char;
 extern Type *type_void;
 
 Type *ptr_of(Type *type);
-
 Type *array_of(Type *type, int len);
-
 int type_size(Type *type);
-
 bool is_int(Type *type);
-
 bool is_integer(Type *type);
-
 bool is_pointer(Type *type);
-
 bool is_pointer_compat(Type *type);
-
 Type *coerce_pointer(Type *type);
-
 Type *binary_int_op_result(Type *lhs, Type *rhs);
-
 bool eq_type(Type *t1, Type *t2);
 
 // semantic analysis
@@ -242,11 +233,9 @@ bool eq_type(Type *t1, Type *t2);
 extern Map *func_env;
 
 void sema_globals();
-
 void sema_func(Func *func);
 
 // codegen
 
 void gen_globals();
-
 void gen_func(Func *func);

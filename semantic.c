@@ -107,14 +107,14 @@ void sema_const_aux(Node *node) {
     if (node->kind == ND_ADD) {
         sema_const_aux(node->lhs);
         sema_const_aux(node->rhs);
-        Node *lhs = node->lhs;
-        Node *rhs = node->rhs;
+        Type *lty = node->lhs->type;
+        Type *rty = node->rhs->type;
 
-        if (is_integer(lhs->type) && is_integer(rhs->type))
-            node->type = binary_int_op_result(lhs->type, rhs->type);
-        else if ((is_pointer_compat(lhs->type) && is_integer(rhs->type)) ||
-                (is_integer(lhs->type) && is_pointer_compat(rhs->type)))
-            node->type = is_pointer_compat(lhs->type) ? lhs->type : rhs->type;
+        if (is_integer(lty) && is_integer(rty))
+            node->type = binary_int_op_result(lty, rty);
+        else if ((is_pointer_compat(lty) && is_integer(rty)) ||
+                (is_integer(lty) && is_pointer_compat(rty)))
+            node->type = is_pointer_compat(lty) ? lty : rty;
         else
             error_loc(node->loc, "[semantic] unsupported addition in a global variable initialization");
         return;
@@ -123,13 +123,13 @@ void sema_const_aux(Node *node) {
     if (node->kind == ND_SUB) {
         sema_const_aux(node->lhs);
         sema_const_aux(node->rhs);
-        Node *lhs = node->lhs;
-        Node *rhs = node->rhs;
+        Type *lty = node->lhs->type;
+        Type *rty = node->rhs->type;
 
-        if (is_integer(lhs->type) && is_integer(rhs->type))
-            node->type = binary_int_op_result(lhs->type, rhs->type);
-        else if (is_pointer_compat(lhs->type) && is_integer(rhs->type))
-            node->type = lhs->type;
+        if (is_integer(lty) && is_integer(rty))
+            node->type = binary_int_op_result(lty, rty);
+        else if (is_pointer_compat(lty) && is_integer(rty))
+            node->type = lty;
         else
             error_loc(node->loc, "[semantic] unsupported addition in a global variable initialization");
         return;
@@ -272,8 +272,7 @@ void sema_stmt(Node *node, Func *func) {
         return;
     }
     if (node->kind == ND_WHILE) {
-        char *loop_label = gen_loop_label("while");
-        node->name = loop_label;
+        char *loop_label = node->name = gen_loop_label("while");
         sema_expr(node->cond, func);
         vec_push(loop_labels, loop_label);
         sema_stmt(node->body, func);
@@ -281,8 +280,7 @@ void sema_stmt(Node *node, Func *func) {
         return;
     }
     if (node->kind == ND_FOR) {
-        char *loop_label = gen_loop_label("for");
-        node->name = loop_label;
+        char *loop_label = node->name = gen_loop_label("for");
         vec_push(loop_labels, loop_label);
         Vec *for_block = vec_new();
         if (node->lhs != NULL)
@@ -297,8 +295,7 @@ void sema_stmt(Node *node, Func *func) {
         return;
     }
     if (node->kind == ND_DOWHILE) {
-        char *loop_label = gen_loop_label("dowhile");
-        node->name = loop_label;
+        char *loop_label = node->name = gen_loop_label("dowhile");
         vec_push(loop_labels, loop_label);
         sema_stmt(node->body, func);
         vec_pop(loop_labels);
@@ -387,42 +384,21 @@ Type *sema_expr_assign(Node *node, Func *func) {
 
     switch (node->kind) {
     case ND_ADDEQ:
-        if (binary_int_op_result(lty, rty) != NULL)
-            return lty;
         if (is_pointer(lty) && is_integer(rty))
             return lty;
-        error_loc(loc, "[semantic] unsupported addition");
-    case ND_SUBEQ:
-        if (binary_int_op_result(lty, rty) != NULL)
-            return lty;
-        if (is_pointer(lty) && is_int(rty))
-            return lty;
-        error_loc(loc, "[semantic] unsupported subtraction");
-    case ND_MULEQ:
-        if (binary_int_op_result(lty, rty) != NULL)
-            return lty;
-        error_loc(loc, "[semantic] unsupported multiplication");
-    case ND_DIVEQ:
-        if (binary_int_op_result(lty, rty) != NULL)
-            return lty;
-        error_loc(loc, "[semantic] unsupported division");
-    case ND_MODEQ:
-        if (binary_int_op_result(lty, rty) != NULL)
-            return lty;
-        error_loc(loc, "[semantic] unsupported modulo");
-    case ND_LSHEQ: case ND_RSHEQ:
-        if (binary_int_op_result(lty, rty) == NULL)
-            error_loc(loc, "[semantic] type mismatch in a shift expression");
-        return lty;
-    case ND_ANDEQ: case ND_IOREQ: case ND_XOREQ:
-        if (binary_int_op_result(lty, rty) != NULL)
-            return lty;
-        error_loc(loc, "[semantic] type mismatch in an AND/OR expression");
-    default:
         break;
+    case ND_SUBEQ:
+        if (is_pointer(lty) && is_integer(rty))
+            return lty;
+        break;
+    default:
+        ;
     }
 
-    return NULL;
+    if (binary_int_op_result(lty, rty) == NULL)
+        error_loc(loc, "[semantic] unsupported assignment");
+
+    return lty;
 }
 
 void sema_expr(Node* node, Func *func) {
@@ -432,7 +408,6 @@ void sema_expr(Node* node, Func *func) {
     case ND_VAR: {
         Node *resolved_local = env_find(local_vars, node->name);
         if (resolved_local != NULL) {
-            // node->type = resolved_local->type;
             *node = *resolved_local;
             return;
         }

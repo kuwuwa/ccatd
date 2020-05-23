@@ -9,14 +9,11 @@ char *arg_regs64[6] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
 void gen_globals();
 void gen_const(Type*, Node*);
 Node *gen_const_calc(Node*);
-void gen(Node*);
 void gen_stmt(Node*);
 void gen_func(Func*);
 void gen_lval(Node*);
-bool is_expr(Node_kind);
 void gen_coeff_ptr(Type*, Type*);
 char *ax_of_type(Type*);
-char *di_of_type(Type*);
 char *word_of_type(Type*);
 
 // generate global variables
@@ -117,18 +114,10 @@ void gen_const(Type *typ, Node *node) {
 }
 
 Node *gen_const_calc(Node *node) {
-    if (node->kind == ND_NUM)
-        return node;
-    if (node->kind == ND_ADDR)
-        return node;
-    if (node->kind == ND_GVAR)
-        return node;
-    if (node->kind == ND_STRING)
-        return node;
-    if (node->kind == ND_ARRAY)
-        return node;
-
-    if (node->kind == ND_ADD) {
+    switch (node->kind) {
+    case ND_NUM: case ND_ADDR: case ND_GVAR: case ND_STRING: case ND_ARRAY:
+        break;
+    case ND_ADD:
         gen_const_calc(node->lhs);
         gen_const_calc(node->rhs);
         if (is_integer(node->lhs->type) && is_integer(node->rhs->type)) {
@@ -151,17 +140,14 @@ Node *gen_const_calc(Node *node) {
                 node->rhs = new_rhs;
             }
         }
-        return node;
-    }
-    if (node->kind == ND_SUB) {
+        break;
+    case ND_SUB:
         gen_const_calc(node->lhs);
         gen_const_calc(node->rhs);
         if (is_integer(node->lhs->type) && is_integer(node->rhs->type)) {
             node->type = ND_NUM;
             node->val = node->lhs->val - node->rhs->val;
         } else {
-            // is_pointer(node->lhs->type) && !is_pointer(node->rhs->type)
-
             if (node->lhs->kind == ND_ADD) {
                 Node *new_rhs = mknum(node->lhs->rhs->val - node->rhs->val, node->loc);
                 node->lhs = node->lhs->lhs;
@@ -172,11 +158,11 @@ Node *gen_const_calc(Node *node) {
                 node->rhs = new_rhs;
             }
         }
-        return node;
+        break;
+    default:
+        error_loc(node->loc, "[codegen] unsupported expression in a global variable declaration");
     }
-
-    error_loc(node->loc, "[codegen] unsupported expression in a global variable declaration");
-    return NULL;
+    return node;
 }
 
 // generate function
@@ -204,6 +190,7 @@ void gen_expr(Node *node) {
             if (!strcmp(node->name, str)) {
                 printf("  mov rax, OFFSET FLAT:.LC%d\n", i);
                 printf("  push rax\n");
+                stack_depth += 8;
                 return;
             }
         }
@@ -231,21 +218,21 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_SEQ) {
-        gen(node->lhs);
+        gen_expr(node->lhs);
         printf("  pop rax\n");
         stack_depth -= 8;
-        gen(node->rhs);
+        gen_expr(node->rhs);
         return;
     }
 
     if (node->kind == ND_ASGN) {
         gen_lval(node->lhs);
-        gen(node->rhs);
+        gen_expr(node->rhs);
         char *ax = ax_of_type(node->type);
         printf("  pop rax\n"
-               "  pop rdi\n");
+               "  mov rdi, [rsp]\n");
         printf("  mov [rdi], %s\n", ax);
-        printf("  push rax\n");
+        printf("  mov [rsp], rax\n");
         stack_depth -= 8;
         return;
     }
@@ -254,7 +241,7 @@ void gen_expr(Node *node) {
         int arg_len = vec_len(node->block);
         int revert_stack_depth = stack_depth;
         for (int i = 0; i < arg_len; i++)
-            gen(vec_at(node->block, i));
+            gen_expr(vec_at(node->block, i));
         for (int i = arg_len-1; i >= 0; i--)
             printf("  pop %s\n", arg_regs64[i]);
 
@@ -277,8 +264,7 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_DEREF) {
-        gen(node->lhs);
-        printf("  pop rax\n");
+        gen_expr(node->lhs);
         int size = type_size(node->type);
         if (size == 1)
             printf("  movsx eax, BYTE PTR [rax]\n");
@@ -286,7 +272,7 @@ void gen_expr(Node *node) {
             printf("  mov eax, [rax]\n");
         else
             printf("  mov rax, [rax]\n");
-        printf("  push rax\n");
+        printf("  mov [rsp], rax\n");
         return;
     }
 
@@ -294,8 +280,7 @@ void gen_expr(Node *node) {
         printf("# prepare attribute access\n");
         gen_lval(node->lhs);
         printf("# offset \n");
-        printf("  pop rax\n"
-               "  add rax, %d\n", node->val);
+        printf("  add rax, %d\n", node->val);
         if (node->type->ty == TY_ARRAY) {
             // pass; put an beginning address of given array
         } else {
@@ -307,7 +292,7 @@ void gen_expr(Node *node) {
             else
                 printf("  mov rax, [rax]\n");
         }
-        printf("  push rax\n");
+        printf("  mov [rsp], rax\n");
         return;
     }
 
@@ -319,12 +304,11 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_NEG) {
-        gen(node->lhs);
-        printf("  pop rax\n"
-               "  cmp rax, 0\n"
+        gen_expr(node->lhs);
+        printf("  cmp rax, 0\n"
                "  sete al\n"
                "  movzb eax, al\n"
-               "  push rax\n");
+               "  mov [rsp], rax\n");
         return;
     }
 
@@ -343,47 +327,45 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_COND) {
-        gen(node->cond); // +8
+        gen_expr(node->cond); // +8
         printf("  pop rax\n"
                "  cmp rax, 0\n"
                "  je .Lcond_else%d\n", label_num);
         stack_depth -= 8;
-        gen(node->lhs); // +8
+        gen_expr(node->lhs); // +8
+        stack_depth -= 8;
         printf("  jmp .Lcond_end%d\n"
                ".Lcond_else%d:\n", label_num, label_num);
-        gen(node->rhs); // +8
+        gen_expr(node->rhs); // +8
         printf(".Lcond_end%d:\n", label_num);
 
-        stack_depth -= 8;
         label_num++;
         return;
     }
 
     if (node->kind == ND_LAND) {
         printf("# logical AND operation\n");
-        gen(node->lhs);
+        gen_expr(node->lhs);
         printf("  cmp rax, 0\n"
                "  je .Land_end%d\n", label_num);
         printf("  pop rax\n");
-        gen(node->rhs);
+        gen_expr(node->rhs);
         printf("  cmp rax, 0\n"
                "  je .Land_end%d\n", label_num);
         printf("  pop rax\n"
                "  push 1\n");
         printf(".Land_end%d:\n", label_num);
 
-        stack_depth += 8;
         label_num++;
         return;
     }
 
     if (node->kind == ND_LOR) {
         printf("# logical OR operation\n");
-        gen(node->lhs);
+        gen_expr(node->lhs);
         printf("  cmp rax, 0\n"
                "  jne .Lor_true%d\n", label_num);
-        printf("  pop rax\n");
-        gen(node->rhs);
+        gen_expr(node->rhs);
         printf("  cmp rax, 0\n"
                "  je .Lor_end%d\n", label_num);
         printf(".Lor_true%d:\n", label_num);
@@ -391,32 +373,22 @@ void gen_expr(Node *node) {
                "  push 1\n");
         printf(".Lor_end%d:\n", label_num);
 
-        stack_depth += 8;
         label_num++;
         return;
     }
 
     if (node->kind == ND_LSH || node->kind == ND_RSH) {
         printf("# prepare shift\n");
-        gen(node->lhs);
+        gen_expr(node->lhs);
         printf("# right hand side\n");
-        gen(node->rhs);
+        gen_expr(node->rhs);
         printf("  pop rcx\n");
-        printf("  pop rax\n");
-        stack_depth -= 16;
+        printf("  mov rax, [rsp]\n");
+        stack_depth -= 8;
+        char *mne = node->kind == ND_LSH ? "shl" : "shr";
         char *ax = ax_of_type(node->lhs->type);
-        switch (node->kind) {
-            case ND_LSH:
-                printf("  shl %s, cl\n", ax);
-                break;
-            case ND_RSH:
-                printf("  shr %s, cl\n", ax);
-                break;
-            default:
-                error("[internal] unreachable");
-        }
-        printf("  push rax\n");
-        stack_depth += 8;
+        printf("  %s %s, cl\n", mne, ax);
+        printf("  mov [rsp], rax\n");
         return;
     }
 
@@ -448,7 +420,7 @@ void gen_expr(Node *node) {
         printf("# prepare assignment operation\n");
         gen_lval(node->lhs);
         printf("# prepare assignment operation; right hand side\n");
-        gen(node->rhs);
+        gen_expr(node->rhs);
 
         switch (node->kind) {
             case ND_LSHEQ: case ND_RSHEQ: {
@@ -489,12 +461,10 @@ void gen_expr(Node *node) {
                         printf("  imul rax, rdi\n");
                         break;
                     case ND_DIVEQ:
-                        printf("# diveq\n");
                         printf("  cqo\n"
                                "  idiv rdi\n");
                         break;
                     case ND_MODEQ:
-                        printf("# modeq\n");
                         printf("  cqo\n"
                                "  idiv rdi\n"
                                "  mov rax, rdx\n");
@@ -519,14 +489,14 @@ void gen_expr(Node *node) {
     }
 
     printf("# prepare arithmetic operation\n");
-    gen(node->lhs);
+    gen_expr(node->lhs);
     printf("# right hand side\n");
-    gen(node->rhs);
+    gen_expr(node->rhs);
 
     printf("# arithmetic operation\n");
     printf("  pop rdi\n");
-    printf("  pop rax\n");
-    stack_depth -= 16;
+    printf("  mov rax, [rsp]\n");
+    stack_depth -= 8;
 
     switch (node->kind) {
         case ND_ADD:
@@ -578,35 +548,34 @@ void gen_expr(Node *node) {
             }
             printf("  movzb rax, al\n");
     }
-    printf("  push rax\n");
+    printf("  mov [rsp], rax\n");
     printf("# end arithmetic operation\n");
-    stack_depth += 8;
 }
 
-void gen(Node *node) {
+void gen_stmt(Node *node) {
     if (node->kind == ND_VARDECL) {
         if (node->rhs == NULL)
             return;
 
         if (node->rhs->kind == ND_ARRAY) {
-            // TODO: cannot handle nested arrays
+            // TODO: Handle nested arrays
             int len = vec_len(node->rhs->block);
             Type *elem_type = node->lhs->type->ptr_to;
             for (int i = 0; i < len; i++) {
                 printf("# local array initialization %d", i);
                 gen_lval(node->lhs);
-                printf("  pop rax\n");
                 printf("  add rax, %d\n", i * type_size(elem_type));
-                printf("  push rax\n");
+                printf("  mov [rsp], rax\n");
 
                 printf("# local array initialization %d; right hand side\n", i);
                 Node *e = vec_at(node->rhs->block, i);
-                gen(e);
+                gen_expr(e);
                 printf("# local array initialization %d; assignment\n", i);
                 char *ax = ax_of_type(elem_type);
                 printf("  pop rax\n"
                        "  pop rdi\n"
                        "  mov [rdi], %s\n", ax);
+                stack_depth -= 16;
             }
             return;
         }
@@ -614,7 +583,7 @@ void gen(Node *node) {
         printf("# variable declaration\n");
         gen_lval(node->lhs);
         printf("# variable declaration; right hand side\n");
-        gen(node->rhs);
+        gen_expr(node->rhs);
         printf("# variable declaration; assignment\n");
         printf("  pop rax\n");
         printf("  pop rdi\n");
@@ -626,7 +595,7 @@ void gen(Node *node) {
 
     if (node->kind == ND_RETURN) {
         if (node->lhs != NULL) {
-            gen(node->lhs);
+            gen_expr(node->lhs);
             printf("  pop rax\n");
         }
         printf("  mov rsp, rbp\n"
@@ -637,7 +606,7 @@ void gen(Node *node) {
 
     if (node->kind == ND_IF) {
         printf("# if statement\n");
-        gen(node->cond);
+        gen_expr(node->cond);
         printf("  pop rax\n"
                "  cmp rax, 0\n");
         stack_depth -= 8;
@@ -661,7 +630,7 @@ void gen(Node *node) {
     if (node->kind == ND_WHILE) {
         char *label_base = node->name;
         printf(".L%s_cont:\n", label_base);
-        gen(node->cond);
+        gen_expr(node->cond);
         printf("# while jump\n");
         printf("  pop rax\n"
                "  cmp rax, 0\n");
@@ -679,7 +648,7 @@ void gen(Node *node) {
             gen_stmt(node->lhs);
         printf(".L%s:\n", node->name);
         if (node->cond != NULL) {
-            gen(node->cond);
+            gen_expr(node->cond);
             printf("  pop rax\n"
                    "  cmp rax, 0\n");
             printf("  je .L%s_end\n", node->name);
@@ -699,7 +668,7 @@ void gen(Node *node) {
         gen_stmt(node->body);
         printf("# prepare do-while repeat check\n");
         printf(".L%s_cont:\n", node->name);
-        gen(node->cond);
+        gen_expr(node->cond);
         printf("# do-while repeat check\n");
         printf("  pop rax\n"
                "  cmp rax, 0\n");
@@ -729,14 +698,8 @@ void gen(Node *node) {
     }
 
     gen_expr(node);
-}
-
-void gen_stmt(Node* node) {
-    gen(node);
-    if (is_expr(node->kind)) {
-        printf("  pop rax # throw away from stack\n");
-        stack_depth -= 8;
-    }
+    printf("  pop rax # throw away from stack\n");
+    stack_depth -= 8;
 }
 
 void gen_func(Func* func) {
@@ -779,11 +742,11 @@ void gen_lval(Node *node) {
         return;
     } else if (node->kind == ND_DEREF) {
         printf("# dereferencing\n");
-        gen(node->lhs);
+        gen_expr(node->lhs);
         printf("# end dereferencing\n");
         return;
     } else if (node->kind == ND_NUM) {
-        gen(node);
+        gen_expr(node);
         return;
     } else if (node->kind == ND_ATTR) {
         printf("# prepare attribute access\n");
@@ -794,16 +757,6 @@ void gen_lval(Node *node) {
         return;
     }
     error("term should be a left value");
-}
-
-bool is_expr(Node_kind kind) {
-    static Node_kind expr_kinds[] = {
-        ND_NUM, ND_VAR, ND_ASGN, ND_ADD, ND_SUB, ND_MUL, ND_DIV, ND_EQ, ND_NEQ, ND_LT, ND_LTE,
-        ND_CALL, ND_ADDR, ND_DEREF, ND_SIZEOF, ND_INDEX, ND_GVAR, ND_STRING
-    };
-    for (int i = 0; i < sizeof(expr_kinds) / sizeof(Node_kind); i++)
-        if (expr_kinds[i] == kind) return true;
-    return false;
 }
 
 void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
@@ -821,7 +774,6 @@ void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
     }
 }
 
-
 char *ax_of_type(Type *type) {
     if (type->ty == TY_ARRAY)
         return "rax";
@@ -831,17 +783,6 @@ char *ax_of_type(Type *type) {
     if (size == 4)
         return "eax";
     return "rax";
-}
-
-char *di_of_type(Type *type) {
-    if (type->ty == TY_ARRAY)
-        return "rdi";
-    int size = type_size(type);
-    if (size == 1)
-        return "dil";
-    if (size == 4)
-        return "edi";
-    return "rdi";
 }
 
 char *word_of_type(Type* type) {
