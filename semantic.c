@@ -449,6 +449,10 @@ void sema_expr(Node* node, Func *func) {
         sema_expr(node->lhs, func);
         node->type = node->lhs->type;
         return;
+    case ND_BCOMPL:
+        sema_expr(node->lhs, func);
+        node->type = node->lhs->type;
+        return;
     case ND_CALL: {
         Func *f = map_find(func_env, node->name);
         if (f == NULL)

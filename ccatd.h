@@ -141,6 +141,7 @@ typedef enum {
     ND_DEREF,
     ND_SIZEOF,
     ND_NEG,
+    ND_BCOMPL,
     ND_INDEX,
     ND_GVAR,
     ND_CHAR,

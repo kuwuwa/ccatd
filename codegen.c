@@ -312,6 +312,13 @@ void gen_expr(Node *node) {
         return;
     }
 
+    if (node->kind == ND_BCOMPL) {
+        gen_expr(node->lhs);
+        printf("  not rax\n"
+               "  mov [rsp], rax\n");
+        return;
+    }
+
     if (node->kind == ND_GVAR) {
         if (node->type->ty == TY_ARRAY) {
             printf("  mov rax, OFFSET FLAT:%s\n", node->name);

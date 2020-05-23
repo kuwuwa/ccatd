@@ -101,6 +101,8 @@ int main() {
     assert_equals(au /= 2, 3);
     assert_equals(au, 3);
 
+    assert_equals(~(~au+1), 2);
+
     return 0;
 }
 

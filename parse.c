@@ -524,6 +524,7 @@ Node *unary() {
          : (tk = consume_keyword("&"))      ? binop(ND_ADDR, mul(), NULL, tk->loc)
          : (tk = consume_keyword("*"))      ? binop(ND_DEREF, mul(), NULL, tk->loc)
          : (tk = consume_keyword("!"))      ? binop(ND_NEG, unary(), NULL, tk->loc)
+         : (tk = consume_keyword("~"))      ? binop(ND_BCOMPL, unary(), NULL, tk->loc)
          : postfix();
 }
 
