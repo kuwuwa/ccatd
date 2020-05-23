@@ -7,8 +7,6 @@
 
 #include "ccatd.h"
 
-// Prototype declarations
-
 int index = 0;
 Vec *functions;
 Map *global_vars;
@@ -26,8 +24,6 @@ Type *type_pointer(Type*);
 Vec *params();
 Node *stmt();
 Vec *block();
-
-// Expressions
 
 Node *rhs_expr();
 Node *array(Location *start);
@@ -49,8 +45,6 @@ Node *postfix();
 Node *primary();
 Vec *args();
 
-// Parse helpers
-
 Token *lookahead_any();
 Token *lookahead(Token_kind kind);
 Token *lookahead_keyword(char *str);
@@ -63,10 +57,6 @@ Token *lookahead_type(char *str);
 bool lookahead_var_decl();
 Type *consume_type_identifier();
 Type *consume_type_pre();
-
-bool is_unary(Node *node);
-
-// Node helpers
 
 Node *mknode(Node_kind kind, Location *loc);
 Node *binop(Node_kind kind, Node *lhs, Node *rhs, Location *loc);
@@ -127,7 +117,7 @@ void toplevel() {
             func->is_extern = false;
             Vec *blk = block();
             if (is_extern)
-                error_loc(tk->loc, "prototype function declaration shouldn't have a body");
+                error_loc(tk->loc, "[parse] prototype function declaration shouldn't have a body");
             func->block = blk;
             func->global_vars = map_new();
             for (int i = 0; i < vec_len(global_vars->values); i++) {
@@ -145,7 +135,7 @@ void toplevel() {
 
         if (consume_keyword("=")) {
             if (is_extern)
-                error_loc(tk->loc, "extern variable declaration shouldn't have a value");
+                error_loc(tk->loc, "[parse] extern variable declaration shouldn't have a value");
             node->rhs = rhs_expr();
         } else
             node->rhs = NULL;
@@ -371,6 +361,7 @@ Node *expr() {
     return node;
 }
 
+// TODO: assignment ::= conditional | unary unary-op assignment
 Node *assignment() {
     Node *node = conditional();
     Token *tk;
@@ -581,8 +572,13 @@ Node *primary() {
         node = mknum(tk->val, tk->loc);
     } else if ((tk = consume(TK_STRING))) {
         node = mknode(ND_STRING, tk->loc);
-        node->name = tk->str;
         node->type = type_ptr_char;
+
+        StringBuilder *sb = strbld_new();
+        strbld_append_str(sb, tk->str);
+        while ((tk = consume(TK_STRING)))
+            strbld_append_str(sb, tk->str);
+        node->name = strbld_build(sb);
     } else if ((tk = consume(TK_CHAR))) {
         node = mknode(ND_CHAR, tk->loc);
         node->val = tk->val;

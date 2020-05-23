@@ -1,4 +1,4 @@
-char x[16] = "Hello, World!";
+char x[16] = "Hello, " "World!";
 
 int main() {
     print(x);
