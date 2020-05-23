@@ -103,6 +103,40 @@ int main() {
 
     assert_equals(~(~au+1), 2);
 
+    for (int i = 0; i < 10; i++) {
+        int co1 = 0;
+        switch (1 + 1) {
+            case 0:
+                fail();
+            case 1:
+                fail();
+            case 2:
+                co1 = 1;
+                if (i == 3)
+                    continue;
+                break;
+            case 3:
+                fail();
+        }
+        if (i == 3)
+            fail();
+        assert_equals(co1, 1);
+    }
+
+    int aa = 0;
+    switch (10) {
+        case 0:
+            fail();
+        default:
+            aa |= 1 << 10;
+        case 1:
+            aa |= 1 << 0;
+            break;
+        case 2:
+            fail(); 
+    }
+    assert_equals(aa, 1025);
+
     return 0;
 }
 

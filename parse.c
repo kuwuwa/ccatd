@@ -299,6 +299,19 @@ Node *stmt() {
     } else if ((tk = consume_keyword("continue"))) {
         expect_keyword(";");
         node = mknode(ND_CONTINUE, tk->loc);
+    } else if ((tk = consume_keyword("switch"))) {
+        node = mknode(ND_SWITCH, tk->loc);
+        expect_keyword("(");
+        node->cond = expr();
+        expect_keyword(")");
+        node->block = block();
+    } else if ((tk = consume_keyword("case"))) {
+        node = mknode(ND_CASE, tk->loc);
+        node->lhs = expr();
+        expect_keyword(":");
+    } else if ((tk = consume_keyword("default"))) {
+        node = mknode(ND_DEFAULT, tk->loc);
+        expect_keyword(":");
     } else if ((tk = lookahead_keyword("{"))) {
         Vec *vec = block();
         node = mknode(ND_BLOCK, tk->loc);

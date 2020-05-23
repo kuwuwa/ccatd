@@ -704,6 +704,39 @@ void gen_stmt(Node *node) {
         return;
     }
 
+    if (node->kind == ND_SWITCH) {
+        gen_expr(node->cond);
+        printf("  pop rax\n");
+        int len = vec_len(node->block);
+        for (int i = 0; i < len; i++) {
+            Node *stmt = vec_at(node->block, i);
+            if (stmt->kind != ND_CASE)
+                continue;
+            printf("  cmp rax, %d\n", stmt->lhs->val);
+            printf("  je .L%s\n", stmt->name);
+        }
+        bool defaulted = false;
+        for (int i = 0; i < len; i++) {
+            Node *stmt = vec_at(node->block, i);
+            if (stmt->kind == ND_DEFAULT) {
+                defaulted = true;
+                printf("  jmp .L%s\n", stmt->name);
+                break;
+            }
+        }
+        if (!defaulted)
+            printf("  jmp .L%s_end\n", node->name);
+        for (int i = 0; i < len; i++)
+            gen_stmt(vec_at(node->block, i));
+        printf(".L%s_end:\n", node->name);
+        return;
+    }
+
+    if (node->kind == ND_CASE || node->kind == ND_DEFAULT) {
+        printf(".L%s:\n", node->name);
+        return;
+    }
+
     gen_expr(node);
     printf("  pop rax # throw away from stack\n");
     stack_depth -= 8;

@@ -159,6 +159,9 @@ typedef enum {
     ND_BREAK,
     ND_CONTINUE,
     ND_BLOCK,
+    ND_SWITCH,
+    ND_CASE,
+    ND_DEFAULT
 } Node_kind;
 
 struct Node {

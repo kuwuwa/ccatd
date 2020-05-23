@@ -55,45 +55,16 @@ void init() {
     // semantic
 
     func_env = map_new();
-    push_function(
-            "foo",
-            NULL,
-            0,
-            type_int // TODO: void
-    );
+    push_function("foo", NULL, 0, type_void);
 
     Type* bar_args[3] = {type_int, type_int, type_int};
-    push_function(
-            "bar",
-            bar_args,
-            3,
-            type_int
-    );
-
-    Type *alloc4_args[5] =
-        {ptr_of(ptr_of(type_int)), type_int, type_int, type_int, type_int};
-    push_function(
-            "alloc4",
-            alloc4_args,
-            5,
-            ptr_of(type_int)
-    );
+    push_function("bar", bar_args, 3, type_int);
 
     Type *print_args[1] = {ptr_of(type_char)};
-    push_function(
-            "print",
-            print_args,
-            1,
-            type_int // void
-    );
+    push_function("print", print_args, 1, type_void);
 
     Type *assert_equals_args[2] = {type_int, type_int};
-    push_function(
-            "assert_equals",
-            assert_equals_args,
-            2,
-            type_int // void
-    );
+    push_function("assert_equals", assert_equals_args, 2, type_int);
 }
 
 char *read_file(char *path) {
@@ -131,9 +102,8 @@ int main(int argc, char **argv) {
 
     sema_globals();
 
-    for (int i = 0; i < vec_len(functions); i++) {
+    for (int i = 0; i < vec_len(functions); i++)
         sema_func(vec_at(functions, i));
-    }
 
     printf("  .intel_syntax noprefix\n"
            "  .globl main\n");
@@ -141,9 +111,8 @@ int main(int argc, char **argv) {
     gen_globals();
 
     int len = vec_len(functions);
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < len; i++)
         gen_func(vec_at(functions, i));
-    }
     return 0;
 }
 

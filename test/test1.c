@@ -135,7 +135,7 @@ int main() {
         assert_equals(x, 20);
     }
     { // pointer4
-        int* a; alloc4(&a, 1, 2, 4, 8);
+        int a[4] = {1, 2, 4, 8};
         *(a+1) = 4294967295;
         *(a+3) = 4294967295;
         assert_equals(a[2], 4);

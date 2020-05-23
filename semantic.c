@@ -5,8 +5,9 @@
 Map *func_env;
 Map *global_env;
 Environment *local_vars;
-int loop_id = 0;
-Vec *loop_labels;
+int jump_id = 0;
+Vec *break_labels;
+Vec *continue_labels;
 int scoped_stack_space;
 int max_scoped_stack_space;
 
@@ -198,7 +199,8 @@ void sema_func(Func *func) {
 
     // block
     local_vars = env_new(NULL);
-    loop_labels = vec_new();
+    break_labels = vec_new();
+    continue_labels = vec_new();
     for (int i = 0; i < params_len; i++) {
         Node* param = vec_at(func->params, i);
         param->val = 8 * (i + 1);
@@ -220,6 +222,31 @@ void sema_block(Vec *block, Func *func) {
 
     local_vars = env_next(local_vars);
     scoped_stack_space = revert_scoped_stack_space;
+}
+
+void sema_case(Node *node) {
+    if (node->kind == ND_NUM)
+        return;
+    error_loc(node->loc, "[semantic] a term cannot be deduced to an integer");
+}
+
+void sema_switch(Node *node, Func *func) {
+    char *label = node->name = gen_loop_label("switch");
+    int len = vec_len(node->block);
+
+    vec_push(break_labels, label);
+    sema_expr(node->cond, func);
+    for (int i = 0; i < len; i++) {
+        Node *stmt = vec_at(node->block, i);
+        if (stmt->kind == ND_CASE) {
+            sema_case(stmt->lhs);
+            stmt->name = gen_loop_label("case");
+        } else if (stmt->kind == ND_DEFAULT) {
+            stmt->name = gen_loop_label("default");
+        } else
+            sema_stmt(stmt, func);
+    }
+    vec_pop(break_labels);
 }
 
 void sema_stmt(Node *node, Func *func) {
@@ -274,14 +301,17 @@ void sema_stmt(Node *node, Func *func) {
     if (node->kind == ND_WHILE) {
         char *loop_label = node->name = gen_loop_label("while");
         sema_expr(node->cond, func);
-        vec_push(loop_labels, loop_label);
+        vec_push(break_labels, loop_label);
+        vec_push(continue_labels, loop_label);
         sema_stmt(node->body, func);
-        vec_pop(loop_labels);
+        vec_pop(break_labels);
+        vec_pop(continue_labels);
         return;
     }
     if (node->kind == ND_FOR) {
         char *loop_label = node->name = gen_loop_label("for");
-        vec_push(loop_labels, loop_label);
+        vec_push(break_labels, loop_label);
+        vec_push(continue_labels, loop_label);
         Vec *for_block = vec_new();
         if (node->lhs != NULL)
             vec_push(for_block, node->lhs);
@@ -291,24 +321,36 @@ void sema_stmt(Node *node, Func *func) {
             vec_push(for_block, node->rhs);
         vec_push(for_block, node->body);
         sema_block(for_block, func);
-        vec_pop(loop_labels);
+        vec_pop(break_labels);
+        vec_pop(continue_labels);
         return;
     }
     if (node->kind == ND_DOWHILE) {
         char *loop_label = node->name = gen_loop_label("dowhile");
-        vec_push(loop_labels, loop_label);
+        vec_push(break_labels, loop_label);
+        vec_push(continue_labels, loop_label);
         sema_stmt(node->body, func);
-        vec_pop(loop_labels);
+        vec_pop(break_labels);
+        vec_pop(continue_labels);
         sema_expr(node->cond, func);
         return;
     }
     if (node->kind == ND_BREAK || node->kind == ND_CONTINUE) {
-        if (vec_len(loop_labels) == 0)
+        Vec *labels = node->kind == ND_BREAK ? break_labels : continue_labels;
+        if (vec_len(labels) == 0)
             error_loc(node->loc, "break/continue should be inside a loop statement");
-        char *label = vec_at((loop_labels), vec_len(loop_labels)-1);
+        char *label = vec_at(labels, vec_len(labels)-1);
         node->name = label;
         return;
     }
+    if (node->kind == ND_SWITCH) {
+        sema_switch(node, func);
+        return;
+    }
+    if (node->kind == ND_CASE)
+        error_loc(node->loc, "`case' should be under a switch statement");
+    if (node->kind == ND_DEFAULT)
+        error_loc(node->loc, "`default' should be under a switch statement");
     if (node->kind == ND_BLOCK) {
         sema_block(node->block, func);
         return;
@@ -336,21 +378,21 @@ Type *sema_expr_arith(Node *node, Func *func) {
             return coerce_pointer(lty);
         if (is_integer(lty) && is_pointer_compat(rty))
             return coerce_pointer(rty);
-        error_loc(loc, "unsupported addition");
+        error_loc(loc, "[semantic] unsupported addition");
     case ND_SUB:
         if ((ret = binary_int_op_result(lty, rty)) != NULL)
             return ret;
         if (is_pointer_compat(lty) && is_int(rty))
             return coerce_pointer(lty);
-        error_loc(loc, "unsupported subtraction");
+        error_loc(loc, "[semantic] unsupported subtraction");
     case ND_MUL:
         if ((ret = binary_int_op_result(lty, rty)) != NULL)
             return ret;
-        error_loc(loc, "unsupported multiplication");
+        error_loc(loc, "[semantic] unsupported multiplication");
     case ND_DIV:
         if ((ret = binary_int_op_result(lty, rty)) != NULL)
             return ret;
-        error_loc(loc, "unsupported division");
+        error_loc(loc, "[semantic] unsupported division");
     case ND_MOD:
         if ((ret = binary_int_op_result(lty, rty)) != NULL)
             return ret;
@@ -562,6 +604,6 @@ bool assignable(Type *lhs, Type *rhs) {
 char *gen_loop_label(char *prefix) {
     int len = strlen(prefix) + 11;
     char *str = calloc(len, sizeof(char));
-    sprintf(str, "%s%d", prefix, loop_id++);
+    sprintf(str, "%s%d", prefix, jump_id++);
     return str;
 }
