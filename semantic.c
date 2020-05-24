@@ -382,6 +382,9 @@ Type *sema_expr_arith(Node *node, Func *func) {
     case ND_SUB:
         if ((ret = binary_int_op_result(lty, rty)) != NULL)
             return ret;
+        if (is_pointer_compat(lty) && is_pointer_compat(rty)
+                && eq_type(lty->ptr_to, rty->ptr_to))
+            return type_int;
         if (is_pointer_compat(lty) && is_int(rty))
             return coerce_pointer(lty);
         error_loc(loc, "[semantic] unsupported subtraction");

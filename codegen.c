@@ -513,6 +513,10 @@ void gen_expr(Node *node) {
         case ND_SUB:
             gen_coeff_ptr(node->lhs->type, node->rhs->type);
             printf("  sub rax, rdi\n");
+            if (is_pointer_compat(node->lhs->type) && is_pointer_compat(node->rhs->type)) {
+                printf("  mov rdi, %d\n", type_size(node->lhs->type->ptr_to));
+                printf("  div rdi\n");
+            }
             break;
         case ND_MUL:
             printf("  imul rax, rdi\n");
@@ -800,7 +804,8 @@ void gen_lval(Node *node) {
 }
 
 void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
-    if (lt->ty == TY_INT && rt->ty == TY_INT) {
+    if (is_pointer_compat(lt) && is_pointer_compat(rt)) {
+    } else if (lt->ty == TY_INT && rt->ty == TY_INT) {
     } else if (lt->ty == TY_INT) {
         int coeff = type_size(rt->ptr_to);
         if (coeff != 1)

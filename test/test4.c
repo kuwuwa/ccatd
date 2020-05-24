@@ -137,6 +137,12 @@ int main() {
     }
     assert_equals(aa, 1025);
 
+    {
+        int p[3] = {1, 10, 100};
+        int *r = p+3;
+        assert_equals(r - p, 3);
+    }
+
     return 0;
 }
 
