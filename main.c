@@ -24,21 +24,19 @@ void push_function(char *name, Type **arg_types, int argc, Type *ret_type) {
     map_put(func_env, name, func);
 }
 
+Type *mktype(Type_kind kind, Type *ptr_to) {
+    Type *typ = calloc(1, sizeof(Type));
+    typ->ty = kind;
+    typ->ptr_to = ptr_to;
+    return typ;
+}
+
 void init() {
     // type
 
-    type_void = calloc(1, sizeof(Type));
-    type_void->ty = TY_VOID;
-    type_void->ptr_to = NULL;
-
-    type_int = calloc(1, sizeof(Type));
-    type_int->ty = TY_INT;
-    type_int->ptr_to = NULL;
-
-    type_char = calloc(1, sizeof(Type));
-    type_char->ty = TY_CHAR;
-    type_char->ptr_to = NULL;
-
+    type_void = mktype(TY_VOID, NULL);
+    type_int = mktype(TY_INT, NULL);
+    type_char = mktype(TY_CHAR, NULL);
     type_ptr_char = ptr_of(type_char);
 
     builtin_aliases = env_new(NULL);

@@ -209,8 +209,10 @@ Node *mknum(int v, Location *loc);
 
 // type
 
+typedef enum { TY_VOID, TY_INT, TY_CHAR, TY_PTR, TY_ARRAY, TY_STRUCT } Type_kind;
+
 struct Type {
-    enum { TY_VOID, TY_INT, TY_CHAR, TY_PTR, TY_ARRAY, TY_STRUCT } ty;
+    Type_kind ty;
     Type* ptr_to;
     int array_size;
     Struct *strct;
