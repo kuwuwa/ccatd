@@ -23,7 +23,7 @@ Type *array_of(Type *ty, int len) {
 int type_size(Type *t) {
     if (t->ty == TY_CHAR)
         return 1;
-    if (t->ty == TY_INT)
+    if (t->ty == TY_INT || t->ty == TY_ENUM)
         return 4;
     if (t->ty == TY_PTR)
         return 8;
@@ -48,7 +48,7 @@ bool is_int(Type *t) {
 }
 
 bool is_integer(Type *t) {
-    return t->ty == TY_INT || t->ty == TY_CHAR;
+    return t->ty == TY_INT || t->ty == TY_CHAR || t->ty == TY_ENUM;
 }
 
 bool is_pointer(Type *t) {
@@ -57,6 +57,10 @@ bool is_pointer(Type *t) {
 
 bool is_pointer_compat(Type *t) {
     return t->ty == TY_PTR || t->ty == TY_ARRAY;
+}
+
+bool is_enum(Type *t) {
+    return t->ty == TY_ENUM;
 }
 
 Type *coerce_pointer(Type *t) {

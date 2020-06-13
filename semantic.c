@@ -26,6 +26,7 @@ void sema_stmt(Node*, Func*);
 void sema_expr(Node*, Func*);
 void sema_lval(Node*, Func*);
 void sema_array(Type*, Node*, Func*);
+void sema_type(Type*);
 
 // Helpers
 
@@ -158,6 +159,27 @@ void sema_const_array(Type *type, Node *node) {
 
 // Functions, statements and expressions
 
+void sema_type(Type* typ) {
+    if (typ->ty == TY_ENUM) {
+        if (typ->enum_decl) {
+            int len = vec_len(typ->enums);
+            for (int i = 0; i < len; i++) {
+                Token *e = vec_at(typ->enums, i);
+                if (map_find(local_vars->map, e->str) != NULL)
+                    error_loc(e->loc, "[semantic] duplicate identifier");
+
+                Node *lvar = calloc(1, sizeof(Node));
+                lvar->kind = ND_VAR;
+                lvar->type = typ;
+                lvar->name = e->str;
+                env_push(local_vars, e->str, lvar);
+            }
+        }
+    }
+    if (typ->ty == TY_PTR)
+        sema_type(typ->ptr_to);
+}
+
 void sema_func(Func *func) {
     int params_len = vec_len(func->params);
     // no duplicate parameter
@@ -185,7 +207,7 @@ void sema_func(Func *func) {
 
         int params_len = vec_len(func->params);
         bool matched = params_len == vec_len(g->params);
-        if (matched) for (int i = 0; matched && i < params_len; i++) {
+        for (int i = 0; matched && i < params_len; i++) {
             Node *fi = vec_at(func->params, i);
             Node *gi = vec_at(g->params, i);
             matched = matched && eq_type(fi->type, gi->type);
@@ -257,6 +279,7 @@ void sema_stmt(Node *node, Func *func) {
 
         if (node->lhs->type == type_void)
             error_loc(node->loc, "[semantic] declaring a variable of void type is not fllowed");
+        sema_type(node->lhs->type);
 
         if (node->rhs != NULL) {
             if (node->lhs->type->ty == TY_ARRAY) {
@@ -591,14 +614,10 @@ void sema_lval(Node *node, Func *func) {
 bool assignable(Type *lhs, Type *rhs) {
     if (lhs == type_void || rhs == type_void)
         return false;
-    if (lhs == type_int)
-        return rhs == type_int || rhs == type_char;
-    if (lhs == type_char)
-        return rhs == type_char || rhs == type_int;
+    if (is_integer(lhs) && is_integer(rhs))
+        return true;
     if (is_pointer_compat(lhs))
         return is_pointer_compat(rhs);
-    if (lhs->ty == TY_STRUCT && rhs->ty == TY_STRUCT)
-        return false;
 
     error("[internal] assignable: unsupported type appeared");
     return false;

@@ -32,10 +32,13 @@ void gen_globals() {
         Node *global = vec_at(global_vars->values, i);
         if (global->is_extern)
             continue;
+        if (is_enum(global->type))
+            continue;
 
         printf("%s:\n", global->name);
-        if (global->rhs == NULL)
+        if (global->rhs == NULL) {
             printf("  .zero %d\n", type_size(global->type));
+        }
         else {
             Node *rhs = gen_const_calc(global->rhs);
             gen_const(global->type, rhs);
@@ -61,6 +64,18 @@ void gen_const(Type *typ, Node *node) {
         return;
     }
     if (node->kind == ND_GVAR) {
+        if (is_enum(node->type)) {
+            int len = vec_len(node->type->enums);
+            for (int i = 0; i < len; i++) {
+                Token *e = vec_at(node->type->enums, i);
+                if (!strcmp(node->name, e->str)) {
+                    printf("  .long %d # enum\n", i);
+                    return;
+                }
+            }
+            error_loc(node->loc, "[internal] enum");
+        }
+
         printf("  .quad %s\n", node->name);
         printf("\n");
         return;
@@ -197,6 +212,20 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_VAR) {
+        if (is_enum(node->type)) {
+            int len = vec_len(node->type->enums);
+            for (int i = 0; i < len; i++) {
+                Token *e = vec_at(node->type->enums, i);
+                if (!strcmp(node->name, e->str)) {
+                    printf("  mov rax, %d\n", i);
+                    printf("  push %d\n", i);
+                    stack_depth += 8;
+                    return;
+                }
+            }
+            error_loc(node->loc, "[internal] enum");
+        }
+
         printf("  mov rax, rbp\n");
         printf("  sub rax, %d\n", node->val);
 
@@ -322,6 +351,18 @@ void gen_expr(Node *node) {
     if (node->kind == ND_GVAR) {
         if (node->type->ty == TY_ARRAY) {
             printf("  mov rax, OFFSET FLAT:%s\n", node->name);
+        } else if (is_enum(node->type)) {
+            int len = vec_len(node->type->enums);
+            for (int i = 0; i < len; i++) {
+                Token *e = vec_at(node->type->enums, i);
+                if (!strcmp(node->name, e->str)) {
+                    printf("  mov rax, %d\n", i);
+                    printf("  push %d\n", i);
+                    stack_depth += 8;
+                    return;
+                }
+            }
+            error_loc(node->loc, "[internal] enum");
         } else {
             char *ax = ax_of_type(node->type);
             char *wo = word_of_type(node->type);

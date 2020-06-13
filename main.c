@@ -94,10 +94,12 @@ int main(int argc, char **argv) {
     }
     init();
 
+    debug("A");
     char *code = read_file(argv[1]);
     tokenize(code);
     parse();
 
+    debug("B");
     sema_globals();
 
     for (int i = 0; i < vec_len(functions); i++)
@@ -106,6 +108,7 @@ int main(int argc, char **argv) {
     printf("  .intel_syntax noprefix\n"
            "  .globl main\n");
 
+    debug("C");
     gen_globals();
 
     int len = vec_len(functions);

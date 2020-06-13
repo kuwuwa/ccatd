@@ -1,6 +1,8 @@
 
 void fail() {
-    assert_equals(0, 1); } 
+    assert_equals(0, 1);
+}
+
 void try_void_return() {
     return;
     fail();
@@ -9,6 +11,12 @@ void try_void_return() {
 int fun1();
 
 extern int glov1;
+
+enum ENUM {
+    E1,
+    E2,
+    E3
+} ENUM;
 
 int main() {
     int a = 0;
@@ -142,6 +150,13 @@ int main() {
         int *r = p+3;
         assert_equals(r - p, 3);
     }
+
+    assert_equals(E1, 0);
+    assert_equals(E2, 1);
+    assert_equals(E3, 2);
+
+    enum ENUM en = 10;
+    int eno = E2;
 
     return 0;
 }

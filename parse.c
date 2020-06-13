@@ -10,13 +10,16 @@
 int index = 0;
 Vec *functions;
 Map *global_vars;
-Environment *structs;
+Environment *struct_env;
+Environment *enum_env;
 Environment *builtin_aliases;
 Environment *aliases;
 
 void toplevel();
-Node *parse_struct(Node_kind kind, Location *loc);
-Type *struct_pre(Location *loc);
+Type *struct_pre(Location *start);
+Node *toplevel_struct(Location *start);
+Type *enum_pre(Location *start);
+Node *toplevel_enum(Location *start);
 Node *var_decl();
 Type *type();
 Type *type_array(Type*);
@@ -53,7 +56,6 @@ Token *consume_keyword(char *str);
 Token *consume_identifier();
 Token *expect(Token_kind kind);
 Token *expect_keyword(char *str);
-Token *lookahead_type(char *str);
 bool lookahead_var_decl();
 Type *consume_type_identifier();
 Type *consume_type_pre();
@@ -65,7 +67,8 @@ Node *mknum(int v, Location *loc);
 // Parse
 
 void parse() {
-    structs = env_new(NULL);
+    struct_env = env_new(NULL);
+    enum_env = env_new(NULL);
     aliases = env_new(builtin_aliases);
 
     int len = vec_len(tokens);
@@ -76,8 +79,8 @@ void parse() {
 void toplevel() {
     Token *tk;
     if ((tk = consume_keyword("typedef"))) {
-        Type *typ = consume_keyword("struct")
-            ? struct_pre(tk->loc)
+        Type *typ = consume_keyword("struct") ? struct_pre(tk->loc)
+            : consume_keyword("enum") ? enum_pre(tk->loc)
             : consume_type_pre();
 
         if (typ == NULL)
@@ -86,11 +89,23 @@ void toplevel() {
         Token *id = expect(TK_IDT);
         expect_keyword(";");
 
-        env_push(aliases, id->str, typ);
+        Type *aliased = typ;
+        env_push(aliases, id->str, aliased);
         return;
     }
     if ((tk = consume_keyword("struct"))) {
-        Node *gvar = parse_struct(ND_GVAR, tk->loc);
+        Node *gvar = toplevel_struct(tk->loc);
+
+        if (gvar != NULL) {
+            gvar->type = type_array(gvar->type);
+            gvar->rhs = consume_keyword("=") ? rhs_expr() : NULL;
+            map_put(global_vars, gvar->name, gvar);
+        }
+        expect_keyword(";");
+        return;
+    }
+    if ((tk = consume_keyword("enum"))) {
+        Node *gvar = toplevel_enum(tk->loc);
 
         if (gvar != NULL) {
             gvar->type = type_array(gvar->type);
@@ -168,7 +183,7 @@ Type *struct_pre(Location *start) {
 
     Type *typ;
     if (strc->fields == NULL)
-        typ = env_find(structs, strc->name);
+        typ = env_find(struct_env, strc->name);
     else {
         typ = calloc(1, sizeof(Type));
         typ->ty = TY_STRUCT;
@@ -176,13 +191,13 @@ Type *struct_pre(Location *start) {
     }
 
     if (typ != NULL && typ->strct->name != NULL)
-        env_push(structs, typ->strct->name, typ);
+        env_push(struct_env, typ->strct->name, typ);
 
     typ = type_pointer(typ);
     return typ;
 }
 
-Node *parse_struct(Node_kind kind, Location *start) {
+Node *toplevel_struct(Location *start) {
     Type *typ = struct_pre(start);
     Token *id = consume(TK_IDT);
 
@@ -192,7 +207,73 @@ Node *parse_struct(Node_kind kind, Location *start) {
     if (id == NULL)
         return NULL;
 
-    Node *ret = mknode(kind, start);
+    Node *ret = mknode(ND_GVAR, start);
+    ret->name = id->str;
+    ret->type = typ;
+    return ret;
+}
+
+Type *enum_pre(Location *start) {
+    Token *enum_id = consume(TK_IDT);
+
+    Type *typ = calloc(1, sizeof(Type));
+    typ->ty = TY_ENUM;
+
+    if (consume_keyword("{")) {
+        typ->enums = vec_new();
+        vec_push(typ->enums, expect(TK_IDT));
+        while (!consume_keyword("}")) {
+            expect_keyword(",");
+            vec_push(typ->enums, expect(TK_IDT));
+        }
+    }
+
+    bool enum_decl = typ->enum_decl = typ->enums != NULL;
+
+    if (enum_id == NULL && typ->enums == NULL)
+        error_loc(start, "[parse] invalid struct statement");
+
+    if (enum_id != NULL) {
+        Vec *existing = map_find(enum_env->map, enum_id->str);
+        if (enum_decl && existing != NULL)
+            error_loc(start, "[parse] duplicate enum type");
+
+        if (enum_decl)
+            env_push(enum_env, enum_id->str, typ->enums);
+        else {
+            existing = env_find(enum_env, enum_id->str);
+            if (existing == NULL)
+                error_loc(start, "[parse] undefined enum type");
+            typ->enums = existing;
+        }
+    }
+
+    typ = type_pointer(typ);
+    return typ;
+}
+
+Node *toplevel_enum(Location *start) {
+    Type *typ = enum_pre(start);
+    Token *id = consume(TK_IDT);
+
+    if (typ->enum_decl) {
+        int len = vec_len(typ->enums);
+        for (int i = 0; i < len; i++) {
+            Token *tk = vec_at(typ->enums, i);
+            Node *id = mknode(ND_GVAR, tk->loc);
+            id->type = typ;
+            id->name = tk->str;
+            map_put(global_vars, id->name, id);
+        }
+    }
+    
+    if (id == NULL && typ->ty == TY_PTR)
+        error_loc(start, "[parse] invalid struct declaration");
+
+    if (id == NULL)
+        return NULL;
+
+    Node *ret = mknode(ND_GVAR, start);
     ret->name = id->str;
     ret->type = typ;
     return ret;
@@ -230,14 +311,16 @@ Vec *params() {
 }
 
 Vec *block() {
-    structs = env_new(structs);
+    struct_env = env_new(struct_env);
+    enum_env = env_new(enum_env);
 
     Vec *vec = vec_new();
     expect_keyword("{");
     while (!consume_keyword("}"))
         vec_push(vec, stmt());
 
-    structs = env_next(structs);
+    struct_env = env_next(struct_env);
+    enum_env = env_next(enum_env);
     return vec;
 }
 
@@ -678,14 +761,10 @@ Token *expect_keyword(char* str) {
     return tk;
 }
 
-Token *lookahead_type(char* str) {
-    Token *tk = lookahead(TK_IDT);
-    return (tk != NULL && !strcmp(str, tk->str)) ? tk : NULL;
-}
-
 bool lookahead_var_decl() {
     Token *tk;
     return lookahead_keyword("struct") != NULL
+        || lookahead_keyword("enum") != NULL
         || ((tk = lookahead(TK_IDT)) != NULL
                 && env_find(aliases, tk->str) != NULL);
 }
@@ -703,8 +782,10 @@ Type *consume_type_pre() {
     Type *typ;
     if ((tk = consume_keyword("struct"))) {
         Token *strc_id = expect(TK_IDT);
-        typ = env_find(structs, strc_id->str);
-    } else
+        typ = env_find(struct_env, strc_id->str);
+    } else if ((tk = consume_keyword("enum")))
+        return enum_pre(tk->loc);
+    else
         typ = consume_type_identifier();
 
     if (typ == NULL)

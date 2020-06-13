@@ -209,13 +209,23 @@ Node *mknum(int v, Location *loc);
 
 // type
 
-typedef enum { TY_VOID, TY_INT, TY_CHAR, TY_PTR, TY_ARRAY, TY_STRUCT } Type_kind;
+typedef enum {
+    TY_VOID,
+    TY_INT,
+    TY_CHAR,
+    TY_PTR,
+    TY_ARRAY,
+    TY_STRUCT,
+    TY_ENUM
+} Type_kind;
 
 struct Type {
     Type_kind ty;
     Type* ptr_to;
     int array_size;
     Struct *strct;
+    bool enum_decl;
+    Vec *enums;
 };
 
 extern Type *type_int;
@@ -230,6 +240,7 @@ bool is_int(Type *type);
 bool is_integer(Type *type);
 bool is_pointer(Type *type);
 bool is_pointer_compat(Type *type);
+bool is_enum(Type* type);
 Type *coerce_pointer(Type *type);
 Type *binary_int_op_result(Type *lhs, Type *rhs);
 bool eq_type(Type *t1, Type *t2);
