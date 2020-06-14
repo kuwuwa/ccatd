@@ -12,7 +12,7 @@ int fun1();
 
 extern int glov1;
 
-enum ENUM {
+typedef enum ENUM {
     E1,
     E2,
     E3
@@ -155,7 +155,8 @@ int main() {
     assert_equals(E2, 1);
     assert_equals(E3, 2);
 
-    enum ENUM en = 10;
+    ENUM en1 = 10;
+    ENUM en2 = 30;
     int eno = E2;
 
     return 0;

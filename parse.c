@@ -90,7 +90,12 @@ void toplevel() {
         typ = type_pointer(typ);
         expect_keyword(";");
 
-        env_push(aliases, decl->name, decl->type);
+        // TODO: Ideally want to stop this ad-hoc
+        Type *aliased = calloc(1, sizeof(Type));
+        *aliased = *typ;
+        aliased->enum_decl = false;
+
+        env_push(aliases, decl->name, aliased);
         return;
     }
     if ((tk = consume_keyword("struct"))) { // TODO: unify with enum case
