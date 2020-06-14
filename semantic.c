@@ -527,7 +527,8 @@ void sema_expr(Node* node, Func *func) {
             error_loc(node->loc, "undefined function");
 
         int params_len = vec_len(node->block);
-        if (params_len != vec_len(f->params))
+        if ((f->is_varargs && (params_len < vec_len(f->params)))
+                    || (!f->is_varargs && params_len != vec_len(f->params)))
             error_loc(node->loc, "invalid number of argument(s)");
         for (int i = 0; i < params_len; i++)
             sema_expr(vec_at(node->block, i), func);

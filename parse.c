@@ -146,9 +146,19 @@ void params(Func *fundecl) {
     expect_keyword("(");
     if (consume_keyword(")"))
         return;
+    if (consume_keyword("...")) {
+        fundecl->is_varargs = true;
+        expect_keyword(")");
+        return;
+    }
     vec_push(fundecl->params, param());
     while (!consume_keyword(")")) {
         expect_keyword(",");
+        if (consume_keyword("...")) {
+            fundecl->is_varargs = true;
+            expect_keyword(")");
+            return;
+        }
         vec_push(fundecl->params, param());
     }
 }

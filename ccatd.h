@@ -188,6 +188,7 @@ struct Func {
     Map *global_vars;
     Location *loc;
     bool is_extern;
+    bool is_varargs;
 };
 
 struct Struct {
