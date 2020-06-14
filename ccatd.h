@@ -216,7 +216,8 @@ typedef enum {
     TY_PTR,
     TY_ARRAY,
     TY_STRUCT,
-    TY_ENUM
+    TY_ENUM,
+    TY_FUNC
 } Type_kind;
 
 struct Type {
@@ -235,12 +236,14 @@ extern Type *type_void;
 
 Type *ptr_of(Type *type);
 Type *array_of(Type *type, int len);
+Type *func_returns(Type *type);
 int type_size(Type *type);
 bool is_int(Type *type);
 bool is_integer(Type *type);
 bool is_pointer(Type *type);
 bool is_pointer_compat(Type *type);
 bool is_enum(Type* type);
+bool is_func(Type *type);
 Type *coerce_pointer(Type *type);
 Type *binary_int_op_result(Type *lhs, Type *rhs);
 bool eq_type(Type *t1, Type *t2);

@@ -20,6 +20,13 @@ Type *array_of(Type *ty, int len) {
     return ret;
 }
 
+Type *func_returns(Type *ty) {
+    Type *ret = calloc(1, sizeof(Type));
+    ret->ty = TY_FUNC;
+    ret->ptr_to = ty;
+    return ret;
+}
+
 int type_size(Type *t) {
     if (t->ty == TY_CHAR)
         return 1;
@@ -61,6 +68,10 @@ bool is_pointer_compat(Type *t) {
 
 bool is_enum(Type *t) {
     return t->ty == TY_ENUM;
+}
+
+bool is_func(Type *t) {
+    return t->ty == TY_FUNC;
 }
 
 Type *coerce_pointer(Type *t) {

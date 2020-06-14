@@ -21,18 +21,15 @@ Type *consume_type_spec();
 Type *type_spec();
 Node *consume_declarator(Type*);
 Node *declarator(Type*);
-Type *type_array(Type*);
-Type *type_pointer(Type*);
 
+Func *func_body(Node *decl);
 Type *struct_body(Location *start);
 Type *enum_body(Location *start);
 
-Vec *params();
 Vec *block();
 Node *stmt();
 
 Node *initializer();
-Node *initializer_list(Location *start);
 
 Node *expr();
 Node *assignment();
@@ -87,7 +84,6 @@ void toplevel() {
     if ((tk = consume_keyword("typedef"))) {
         Type *typ = type_spec();
         Node *decl = declarator(typ);
-        typ = type_pointer(typ);
         expect_keyword(";");
 
         // TODO: Ideally want to stop this ad-hoc
@@ -98,50 +94,20 @@ void toplevel() {
         env_push(aliases, decl->name, aliased);
         return;
     }
-    if ((tk = consume_keyword("struct"))) { // TODO: unify with enum case
-        Type *typ = struct_body(tk->loc);
-
-        Node *gvar = consume_declarator(typ);
-        if (gvar != NULL) {
-            gvar->kind = ND_GVAR;
-            gvar->rhs = consume_keyword("=") ? initializer() : NULL;
-            map_put(global_vars, gvar->name, gvar);
-        }
-        expect_keyword(";");
-        return;
-    }
-    if ((tk = consume_keyword("enum"))) { // TODO: unify with struct case
-        Type *typ = enum_body(tk->loc);
-
-        Node *gvar = consume_declarator(typ);
-        if (gvar != NULL) {
-            gvar->kind = ND_GVAR;
-            gvar->rhs = consume_keyword("=") ? initializer() : NULL;
-            map_put(global_vars, gvar->name, gvar);
-        }
-        expect_keyword(";");
-        return;
-    }
 
     bool is_extern = consume_keyword("extern");
 
     Type *typ = type_spec();
-    typ = type_pointer(typ);
-    tk = expect(TK_IDT);
-    if (consume_keyword("(")) {
-        Func *func = calloc(1, sizeof(Func));
-        func->name = tk->str;
-        func->loc = tk->loc;
-        func->params = params();
-        func->ret_type = typ;
+    Node *decl = consume_declarator(typ);
+    if (decl != NULL && is_func(decl->type)) {
+        Func *func = func_body(decl);
         if (consume_keyword(";")) {
             func->is_extern = true;
         } else {
-            func->is_extern = false;
-            Vec *blk = block();
             if (is_extern)
-                error_loc(tk->loc, "[parse] prototype function declaration shouldn't have a body");
-            func->block = blk;
+                error_loc(decl->loc, "[parse] prototype function declaration shouldn't have a body");
+            func->is_extern = false;
+            func->block = block();
             func->global_vars = map_new();
             for (int i = 0; i < vec_len(global_vars->values); i++) {
                 Node *gvar = vec_at(global_vars->values, i);
@@ -150,24 +116,50 @@ void toplevel() {
         }
         vec_push(functions, func);
     } else {
-        Node *gvar = mknode(ND_GVAR, tk->loc);
-        gvar->name = tk->str;
-        gvar->is_extern = is_extern;
+        if (decl != NULL) {
+            decl->kind = ND_GVAR;
+            decl->is_extern = is_extern;
 
-        typ = type_array(typ);
+            decl->rhs = NULL;
+            if (consume_keyword("=")) {
+                if (is_extern)
+                    error_loc(tk->loc, "[parse] extern variable declaration shouldn't have a value");
+                decl->rhs = initializer();
+            }
 
-        if (consume_keyword("=")) {
-            if (is_extern)
-                error_loc(tk->loc, "[parse] extern variable declaration shouldn't have a value");
-            gvar->rhs = initializer();
-        } else
-            gvar->rhs = NULL;
-
+            map_put(global_vars, decl->name, decl);
+        }
         expect_keyword(";");
 
-        gvar->type = typ;
-        map_put(global_vars, gvar->name, gvar);
     }
+}
+
+Node *param() {
+    Type *typ = type_spec();
+    Node *p = declarator(typ);
+    p->kind = ND_VAR;
+    return p;
+}
+
+void params(Func *fundecl) {
+    fundecl->params = vec_new();
+    expect_keyword("(");
+    if (consume_keyword(")"))
+        return;
+    vec_push(fundecl->params, param());
+    while (!consume_keyword(")")) {
+        expect_keyword(",");
+        vec_push(fundecl->params, param());
+    }
+}
+
+Func *func_body(Node *decl) {
+    Func *func = calloc(1, sizeof(Func));
+    func->loc = decl->loc;
+    func->name = decl->name;
+    func->ret_type = decl->type->ptr_to;
+    params(func);
+    return func;
 }
 
 Type *struct_body(Location *start) {
@@ -273,21 +265,31 @@ Type *type_spec() {
 }
 
 Node *consume_declarator(Type *spec) {
-    Type *typ = type_pointer(spec);
+    Type *typ = spec;
+    while (consume_keyword("*")) typ = ptr_of(typ);
+
     Token *id = consume_value_identifier();
     if (id == NULL) {
-        if (typ == spec)
-            return NULL;
-        else
+        if (typ != spec)
             error_loc(lookahead_any()->loc, "[parse] identifier expected in declarator");
+        return NULL;
     }
-
-    typ = type_array(typ);
 
     Node *decl = calloc(1, sizeof(Node));
     decl->loc = id->loc;
     decl->name = id->str;
+
+    if (lookahead_keyword("(")) {
+        decl->type = func_returns(typ);
+        return decl;
+    }
+
     decl->type = typ;
+    while (consume_keyword("[")) {
+        Token *len = consume(TK_NUM);
+        decl->type = array_of(decl->type, len->val);
+        expect_keyword("]");
+    }
     return decl;
 }
 
@@ -296,26 +298,6 @@ Node *declarator(Type *spec) {
     if (decl == NULL)
         error_loc(lookahead_any()->loc, "[parse] identifier expected in declarator");
     return decl;
-}
-
-Node *param() {
-    Type *typ = type_spec();
-    Node *p = declarator(typ);
-    p->kind = ND_VAR;
-    return p;
-}
-
-Vec *params() {
-    Vec *vec = vec_new();
-    if (consume_keyword(")"))
-        return vec;
-
-    vec_push(vec, param());
-    while (!consume_keyword(")")) {
-        expect_keyword(",");
-        vec_push(vec, param());
-    }
-    return vec;
 }
 
 Vec *block() {
@@ -424,29 +406,7 @@ Node *stmt() {
     return node;
 }
 
-Type *type_pointer(Type *t) {
-    while (consume_keyword("*")) t = ptr_of(t);
-    return t;
-}
-
-Type *type_array(Type *t) {
-    while (consume_keyword("[")) {
-        Token *len = consume(TK_NUM);
-        t = array_of(t, len->val);
-        expect_keyword("]");
-    }
-    return t;
-}
-
 // Expressions
-
-Node *initializer() {
-    Token *tk = NULL;
-    if ((tk = consume_keyword("{")))
-        return initializer_list(tk->loc);
-
-    return expr();
-}
 
 Node *initializer_list(Location *start) {
     Node *ret = mknode(ND_ARRAY, start);
@@ -455,12 +415,18 @@ Node *initializer_list(Location *start) {
         return ret;
 
     vec_push(ret->block, assignment());
-
     while (!consume_keyword("}")) {
         expect_keyword(",");
         vec_push(ret->block, assignment());
     }
     return ret;
+}
+
+Node *initializer() {
+    Token *tk = NULL;
+    if ((tk = consume_keyword("{")))
+        return initializer_list(tk->loc);
+    return expr();
 }
 
 Node *expr() {
@@ -496,7 +462,6 @@ Node *assignment() {
         return binop(ND_IOREQ, node, assignment(), tk->loc);
     if ((tk = consume_keyword("^=")))
         return binop(ND_XOREQ, node, assignment(), tk->loc);
-
     return node;
 }
 
@@ -634,7 +599,6 @@ Node *postfix() {
         if ((tk = consume_keyword("["))) {
             Node *index_node = expr();
             expect_keyword("]");
-
             Node *add_node = binop(ND_ADD, node, index_node, tk->loc);
             Node *next_node = binop(ND_DEREF, add_node, NULL, tk->loc);
             node = next_node;
@@ -656,7 +620,6 @@ Node *postfix() {
         else
             break;
     }
-
     return node;
 }
 
@@ -668,7 +631,7 @@ Node *primary() {
         expect_keyword(")");
     }
 
-    if ((tk = consume(TK_IDT))) {
+    if ((tk = consume_value_identifier())) {
         if (consume_keyword("(")) { // CALL
             node = mknode(ND_CALL, tk->loc);
             node->name = tk->str;
@@ -698,7 +661,6 @@ Node *primary() {
         tk = lookahead_any();
         error_loc(tk->loc, "invalid expression or statement");
     }
-
     return node;
 }
 

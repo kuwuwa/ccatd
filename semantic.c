@@ -619,7 +619,7 @@ bool assignable(Type *lhs, Type *rhs) {
     if (is_pointer_compat(lhs))
         return is_pointer_compat(rhs);
 
-    error("[internal] assignable: unsupported type appeared");
+    debug("[internal] assignable %d %d", lhs->ty, rhs->ty);
     return false;
 }
 
