@@ -1,7 +1,3 @@
-#include <ctype.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "ccatd.h"
 
 int loc_line = 1;

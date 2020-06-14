@@ -1,20 +1,14 @@
-#include <errno.h>
-#include <stdbool.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "ccatd.h"
 
 void append_type_param(Vec *params, Type* t) {
-    Node *node = (Node*) calloc(1, sizeof(Node));
+    Node *node = calloc(1, sizeof(Node));
     node->type = t;
     node->kind = ND_VAR;
     vec_push(params, node);
 }
 
 void push_function(char *name, Type **arg_types, int argc, Type *ret_type) {
-    Func *func = (Func*) calloc(1, sizeof(Func));
+    Func *func = calloc(1, sizeof(Func));
     func->name = name;
     func->params = vec_new();
     for (int i = 0; i < argc; i++)
@@ -109,8 +103,9 @@ int main(int argc, char **argv) {
     gen_globals();
 
     int len = vec_len(functions);
-    for (int i = 0; i < len; i++)
+    for (int i = 0; i < len; i++) {
         gen_func(vec_at(functions, i));
+    }
     return 0;
 }
 

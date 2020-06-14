@@ -1,10 +1,3 @@
-#include <ctype.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "ccatd.h"
 
 int index = 0;
@@ -22,9 +15,9 @@ Type *type_spec();
 Node *consume_declarator(Type*);
 Node *declarator(Type*);
 
-Func *func_body(Node *decl);
-Type *struct_body(Location *start);
-Type *enum_body(Location *start);
+Func *parse_func(Node *decl);
+Type *parse_struct(Location *start);
+Type *parse_enum(Location *start);
 
 Vec *block();
 Node *stmt();
@@ -100,7 +93,7 @@ void toplevel() {
     Type *typ = type_spec();
     Node *decl = consume_declarator(typ);
     if (decl != NULL && is_func(decl->type)) {
-        Func *func = func_body(decl);
+        Func *func = parse_func(decl);
         if (consume_keyword(";")) {
             func->is_extern = true;
         } else {
@@ -163,7 +156,7 @@ void params(Func *fundecl) {
     }
 }
 
-Func *func_body(Node *decl) {
+Func *parse_func(Node *decl) {
     Func *func = calloc(1, sizeof(Func));
     func->loc = decl->loc;
     func->name = decl->name;
@@ -172,7 +165,7 @@ Func *func_body(Node *decl) {
     return func;
 }
 
-Type *struct_body(Location *start) {
+Type *parse_struct(Location *start) {
     Token *strc_id = consume(TK_IDT);
     Vec *fields = NULL;
     if (consume_keyword("{")) {
@@ -210,7 +203,7 @@ Type *struct_body(Location *start) {
     return typ;
 }
 
-Type *enum_body(Location *start) {
+Type *parse_enum(Location *start) {
     Token *enum_id = consume(TK_IDT);
 
     Type *typ = calloc(1, sizeof(Type));
@@ -261,9 +254,9 @@ Type *enum_body(Location *start) {
 Type *consume_type_spec() {
     Token *tk;
     if ((tk = consume_keyword("struct")))
-        return struct_body(tk->loc);
+        return parse_struct(tk->loc);
     if ((tk = consume_keyword("enum")))
-        return enum_body(tk->loc);
+        return parse_enum(tk->loc);
     return consume_type_identifier();
 }
 
@@ -589,9 +582,25 @@ Node *mul() {
     return node;
 }
 
+Node *parse_sizeof(Location *loc) {
+    if (consume_keyword("(")) {
+        Node *node = parse_sizeof(loc);
+        expect_keyword(")");
+        return node;
+    }
+    Type *typ = consume_type_spec();
+    if (typ != NULL) {
+        while (consume_keyword("*")) typ = ptr_of(typ);
+        Node *node = calloc(1, sizeof(Node));
+        node->type = typ;
+        return binop(ND_SIZEOF, node, NULL, loc);
+    }
+    return binop(ND_SIZEOF, unary(), NULL, loc);
+}
+
 Node *unary() {
     Token *tk;
-    return (tk = consume_keyword("sizeof")) ? binop(ND_SIZEOF, unary(), NULL, tk->loc)
+    return (tk = consume_keyword("sizeof")) ? parse_sizeof(tk->loc)
          : (tk = consume_keyword("++"))     ? binop(ND_PREINCR, unary(), NULL, tk->loc)
          : (tk = consume_keyword("--"))     ? binop(ND_PREDECR, unary(), NULL, tk->loc)
          : consume_keyword("+")             ? unary()

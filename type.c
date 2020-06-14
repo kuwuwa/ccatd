@@ -1,4 +1,3 @@
-
 #include "ccatd.h"
 
 Type *type_int; Type *type_char;

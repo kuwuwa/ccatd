@@ -1,5 +1,3 @@
-#include <string.h>
-
 #include "ccatd.h"
 
 Map *func_env;
@@ -509,7 +507,8 @@ void sema_expr(Node* node, Func *func) {
         node->type = node->lhs->type->ptr_to;
         return;
     case ND_SIZEOF:
-        sema_expr(node->lhs, func);
+        if (node->lhs->type == NULL)
+            sema_expr(node->lhs, func);
         node->type = type_int;
         node->val = type_size(node->lhs->type);
         return;

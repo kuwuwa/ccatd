@@ -1,7 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "ccatd.h"
 
 char *arg_regs64[6] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
