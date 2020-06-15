@@ -12,19 +12,19 @@ int max_scoped_stack_space;
 // Global
 
 void sema_globals();
-void sema_const(Node*);
-void sema_const_aux(Node*);
-void sema_const_array(Type*, Node*);
+void sema_const(Node* n);
+void sema_const_aux(Node* n);
+void sema_const_array(Type* t, Node* n);
 
 // Functions, statements and expressions
 
 void sema_func(Func *func);
-void sema_block(Vec*, Func*);
-void sema_stmt(Node*, Func*);
-void sema_expr(Node*, Func*);
-void sema_lval(Node*, Func*);
-void sema_array(Type*, Node*, Func*);
-void sema_type(Type*);
+void sema_block(Vec* v, Func* f);
+void sema_stmt(Node* n, Func* f);
+void sema_expr(Node* n, Func* f);
+void sema_lval(Node* n, Func* f);
+void sema_array(Type* t, Node* n, Func* f);
+void sema_type(Type* f);
 
 // Helpers
 
@@ -237,8 +237,9 @@ void sema_block(Vec *block, Func *func) {
     int revert_scoped_stack_space = scoped_stack_space;
 
     int block_len = vec_len(block);
-    for (int i = 0; i < block_len; i++)
+    for (int i = 0; i < block_len; i++) {
         sema_stmt(vec_at(block, i), func);
+    }
 
     local_vars = env_next(local_vars);
     scoped_stack_space = revert_scoped_stack_space;

@@ -3,14 +3,14 @@
 char *arg_regs64[6] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
 
 void gen_globals();
-void gen_const(Type*, Node*);
-Node *gen_const_calc(Node*);
-void gen_stmt(Node*);
-void gen_func(Func*);
-void gen_lval(Node*);
-void gen_coeff_ptr(Type*, Type*);
-char *ax_of_type(Type*);
-char *word_of_type(Type*);
+void gen_const(Type* t, Node* n);
+Node *gen_const_calc(Node* n);
+void gen_stmt(Node* n);
+void gen_func(Func* f);
+void gen_lval(Node* n);
+void gen_coeff_ptr(Type* t1, Type* t2);
+char *ax_of_type(Type* t);
+char *word_of_type(Type* t);
 
 // generate global variables
 

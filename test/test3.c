@@ -53,5 +53,7 @@ int main() {
 
     assert_equals(bar_total(bar_ptr), 45);
 
+    assert_equals(sizeof(struct Bar*), 8);
+
     return 0;
 }

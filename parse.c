@@ -185,20 +185,27 @@ Type *parse_struct(Location *start) {
 
     Struct *strc = calloc(1, sizeof(Struct));
     strc->name = (strc_id == NULL) ? NULL : strc_id->str;
-    strc->fields = fields;
     strc->loc = start;
 
-    Type *typ;
-    if (strc->fields == NULL)
-        typ = env_find(struct_env, strc->name);
-    else {
-        typ = calloc(1, sizeof(Type));
-        typ->ty = TY_STRUCT;
-        typ->strct = strc;
-    }
+    Type *typ = calloc(1, sizeof(Type));
+    typ->ty = TY_STRUCT;
+    typ->strct = strc;
 
-    if (typ != NULL && typ->strct->name != NULL)
-        env_push(struct_env, typ->strct->name, typ);
+    Type *existing =
+        (strc->name == NULL) ? NULL : env_find(struct_env, strc->name);
+    if (existing == NULL) {
+        strc->fields = fields;
+        if (strc->name != NULL)
+            env_push(struct_env, strc->name, typ);
+    } else {
+        Struct *existing_strc = existing->strct;
+        if (existing_strc->fields != NULL && fields != NULL)
+            error_loc(start, "[parse] duplicate struct declaration");
+
+        strc->fields = (fields == NULL)
+            ? (fields = existing_strc->fields)
+            : (existing_strc->fields = fields);
+    }
 
     return typ;
 }

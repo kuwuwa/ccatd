@@ -36,6 +36,8 @@ int type_size(Type *t) {
     if (t->ty == TY_ARRAY)
         return t->array_size * type_size(t->ptr_to);
     if (t->ty == TY_STRUCT) {
+        if (t->strct->fields == NULL)
+            error_loc(t->strct->loc, "[codegen] struct size not determined");
         int size = 0;
         int num_fields = vec_len(t->strct->fields);
         for (int i = 0; i < num_fields; i++) {

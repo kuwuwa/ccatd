@@ -18,6 +18,13 @@ typedef enum ENUM {
     E3
 } ENUM;
 
+struct H;
+
+struct H {
+    int a;
+};
+
+
 int main() {
     int a = 0;
     int b = 1;
@@ -159,12 +166,18 @@ int main() {
     ENUM en2 = 30;
     int eno = E2;
 
+    struct H h;
+
     return 0;
+}
+
+void pf(int x, ...) {
 }
 
 int glov1 = 12345;
 
 int fun1() {
+    pf(1, 2, 3, 4, 5, 6);
     return 0;
 }
 
