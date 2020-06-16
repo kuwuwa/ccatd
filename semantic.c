@@ -100,7 +100,9 @@ void sema_const_aux(Node *node) {
         Node *resolved = map_find(global_env, node->name);
         if (resolved == NULL)
             error_loc(node->loc, "[semantic] undefined variable");
-        *node = *resolved;
+        node->kind = resolved->kind;
+        node->type = resolved->type;
+        node->val = resolved->val;
         return;
     }
 
@@ -475,14 +477,18 @@ void sema_expr(Node* node, Func *func) {
     case ND_VAR: {
         Node *resolved_local = env_find(local_vars, node->name);
         if (resolved_local != NULL) {
-            *node = *resolved_local;
+            node->kind = resolved_local->kind;
+            node->type = resolved_local->type;
+            node->val = resolved_local->val;
             return;
         }
 
         Node *resolved_global = map_find(func->global_vars, node->name);
         if (resolved_global == NULL)
             error_loc(node->loc, "[semantic] undefined variable");
-        *node = *resolved_global;
+        node->kind = resolved_global->kind;
+        node->type = resolved_global->type;
+        node->val = resolved_global->val;
         return;
     }
     case ND_SEQ:
