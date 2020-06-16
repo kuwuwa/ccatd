@@ -198,13 +198,22 @@ Type *parse_struct(Location *start) {
         if (strc->name != NULL)
             env_push(struct_env, strc->name, typ);
     } else {
-        Struct *existing_strc = existing->strct;
-        if (existing_strc->fields != NULL && fields != NULL)
-            error_loc(start, "[parse] duplicate struct declaration");
+        Type *local_strct = map_find(struct_env->map, strc->name);
+        if (local_strct != NULL && fields != NULL) {
+            if (local_strct->strct->fields != NULL)
+                error_loc(start, "[parse] duplicate struct declaration");
+            else
+                local_strct->strct->fields = fields;
+        }
 
         strc->fields = (fields == NULL)
-            ? (fields = existing_strc->fields)
-            : (existing_strc->fields = fields);
+            ? (fields = existing->strct->fields)
+            : fields;
+
+        // TODO: ad-hoc, might not be correct
+        Type *alias;
+        if ((alias = map_find(aliases->map, strc->name)) != NULL)
+            alias->strct = strc;
     }
 
     return typ;

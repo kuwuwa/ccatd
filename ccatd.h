@@ -86,7 +86,7 @@ typedef enum {
     TK_IDT,
     TK_EOF,
     TK_CHAR,
-    TK_STRING,
+    TK_STRING
 } Token_kind;
 
 struct Token {
