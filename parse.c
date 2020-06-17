@@ -681,12 +681,7 @@ Node *primary() {
     } else if ((tk = consume(TK_STRING))) {
         node = mknode(ND_STRING, tk->loc);
         node->type = type_ptr_char;
-
-        StringBuilder *sb = strbld_new();
-        strbld_append_str(sb, tk->str);
-        while ((tk = consume(TK_STRING)))
-            strbld_append_str(sb, tk->str);
-        node->name = strbld_build(sb);
+        node->name = tk->str;
     } else if ((tk = consume(TK_CHAR))) {
         node = mknode(ND_CHAR, tk->loc);
         node->val = tk->val;

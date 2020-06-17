@@ -98,23 +98,31 @@ void tokenize(char *p) {
         }
 
         if (*p == '"') {
-            skip_column(&p, 1); // '"'
             StringBuilder *sb = strbld_new();
-            while (*p && *p != '"') {
-                if (*(p+1) && *p == '\\') {
-                    skip_column(&p, 1); // '\\'
-                    char escaped = *p == 'n' ? '\n'
-                                 : *p == 'r' ? '\r'
-                                 : *p == '0' ? '\0'
-                                 : *p == '"' ? '"'
-                                 : *p;
-                    strbld_append(sb, escaped);
-                    skip_char(&p, *p);
-                } else {
-                    strbld_append(sb, *p);
-                    skip_char(&p, *p);
+            while (*p && *p == '"') {
+                skip_column(&p, 1); // '"'
+                while (*p && *p != '"') {
+                    if (*(p+1) && *p == '\\') {
+                        skip_column(&p, 1); // '\\'
+                        char escaped = *p == 'n' ? '\n'
+                                     : *p == 'r' ? '\r'
+                                     : *p == '0' ? '\0'
+                                     : *p == '"' ? '"'
+                                     : *p;
+                        strbld_append(sb, escaped);
+                        skip_char(&p, *p);
+                    } else {
+                        strbld_append(sb, *p);
+                        skip_char(&p, *p);
+                    }
+                }
+                if (*p) {
+                    skip_column(&p, 1); // '"'
+                    while (isspace(*p))
+                        skip_char(&p, *p);
                 }
             }
+
             if (!*p)
                 error_loc2(loc_line, loc_column, "[parse] Closing double quote \"\\\"\" expected");
 
@@ -122,8 +130,6 @@ void tokenize(char *p) {
             int len = strlen(content);
             vec_push(string_literals, content);
             vec_push(tokens, new_token(TK_STRING, content, len));
-
-            skip_column(&p, 1); // '"'
             continue;
         }
 
