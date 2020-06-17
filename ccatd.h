@@ -181,6 +181,7 @@ struct Node {
     Location *loc;
     Token *attr;
     bool is_extern;
+    bool is_enum;
 };
 
 struct Func {

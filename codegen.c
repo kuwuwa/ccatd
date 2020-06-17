@@ -208,7 +208,7 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_VAR) {
-        if (is_enum(node->type)) {
+        if (node->is_enum) {
             int len = vec_len(node->type->enums);
             for (int i = 0; i < len; i++) {
                 Token *e = vec_at(node->type->enums, i);
@@ -347,7 +347,7 @@ void gen_expr(Node *node) {
     if (node->kind == ND_GVAR) {
         if (node->type->ty == TY_ARRAY) {
             printf("  mov rax, OFFSET FLAT:%s\n", node->name);
-        } else if (is_enum(node->type)) {
+        } else if (is_enum(node->type)) { // TODO: re-consider
             int len = vec_len(node->type->enums);
             for (int i = 0; i < len; i++) {
                 Token *e = vec_at(node->type->enums, i);

@@ -172,6 +172,7 @@ void sema_type(Type* typ) {
                 lvar->kind = ND_VAR;
                 lvar->type = typ;
                 lvar->name = e->str;
+                lvar->is_enum = true;
                 env_push(local_vars, e->str, lvar);
             }
         }

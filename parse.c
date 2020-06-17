@@ -242,6 +242,7 @@ Type *parse_enum(Location *start) {
             Node *id = mknode(ND_GVAR, tk->loc);
             id->type = typ;
             id->name = tk->str;
+            id->is_enum = true;
             map_put(variable_env->map, id->name, id);
         }
     }

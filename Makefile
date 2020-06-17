@@ -14,6 +14,6 @@ test: build
 	bash ./test.bash
 
 clean:
-	rm -f ccatd $(patsubst %.c,%.o,$(SRCS)) _*
+	rm -rf ccatd $(patsubst %.c,%.o,$(SRCS)) _*
 
 .PHONY: test clean
