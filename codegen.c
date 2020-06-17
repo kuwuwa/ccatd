@@ -870,5 +870,10 @@ char *ax_of_type(Type *type) {
 char *word_of_type(Type* type) {
     if (type->ty == TY_ARRAY)
         return "QWORD";
-    return type_size(type) == 8 ? "QWORD" : "DWORD";
+    int size = type_size(type);
+    if (size == 1)
+        return "BYTE";
+    if (size == 4)
+        return "DWORD";
+    return "QWORD";
 }
