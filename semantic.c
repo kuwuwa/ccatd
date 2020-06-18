@@ -132,6 +132,8 @@ void sema_const_aux(Node *node) {
             node->type = binary_int_op_result(lty, rty);
         else if (is_pointer_compat(lty) && is_integer(rty))
             node->type = lty;
+        else if (is_pointer_compat(lty) && is_pointer_compat(rty))
+            node->type = type_int;
         else
             error_loc(node->loc, "[semantic] unsupported addition in a global variable initialization");
         return;

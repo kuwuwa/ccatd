@@ -42,6 +42,7 @@ char *escape_string(char *str) {
     for (int i = 0; i < len; i++) {
         char ch = str[i];
         if (ch == '\n') strbld_append_str(sb, "\\n");
+        else if (ch == '\\') strbld_append_str(sb, "\\\\");
         else if (ch == '"') strbld_append_str(sb, "\\\"");
         else strbld_append(sb, ch);
     }

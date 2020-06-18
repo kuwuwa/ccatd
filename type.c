@@ -5,14 +5,14 @@ Type *type_ptr_char;
 Type *type_void;
 
 Type *ptr_of(Type *ty) {
-    Type *ret = (Type*) calloc(1, sizeof(Type));
+    Type *ret = calloc(1, sizeof(Type));
     ret->ty = TY_PTR;
     ret->ptr_to = ty;
     return ret;
 }
 
 Type *array_of(Type *ty, int len) {
-    Type *ret = (Type*) calloc(1, sizeof(Type));
+    Type *ret = calloc(1, sizeof(Type));
     ret->ty = TY_ARRAY;
     ret->ptr_to = ty;
     ret->array_size = len;

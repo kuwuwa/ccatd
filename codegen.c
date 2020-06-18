@@ -497,6 +497,11 @@ void gen_expr(Node *node) {
                     case ND_SUBEQ:
                         gen_coeff_ptr(node->lhs->type, node->rhs->type);
                         printf("  sub rax, rdi\n");
+                        if (is_pointer_compat(node->lhs->type) &&
+                                is_pointer_compat(node->rhs->type)) {
+                            printf("  mov rdi, %d\n", type_size(node->lhs->type->ptr_to));
+                            printf("  div rdi\n");
+                        }
                         break;
                     case ND_MULEQ:
                         printf("  imul rax, rdi\n");
