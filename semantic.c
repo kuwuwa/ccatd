@@ -314,7 +314,7 @@ void sema_stmt(Node *node, Func *func) {
         Type *typ = node->lhs == NULL
             ? type_void
             : (sema_expr(node->lhs, func), node->lhs->type);
-        if (!eq_type(typ, func->ret_type))
+        if (!eq_type(func->ret_type, typ) && !assignable(func->ret_type, typ))
             error_loc(node->loc, "[semantic] type mismatch in a return statement");
         return;
     }
@@ -552,6 +552,7 @@ void sema_expr(Node* node, Func *func) {
 
         if (!eq_type(node->lhs->type, node->rhs->type))
             error_loc(node->loc, "[semantic] type mismatch in a conditional expression");
+        node->type = node->lhs->type;
         return;
     case ND_ATTR: {
         sema_expr(node->lhs, func);
@@ -627,7 +628,7 @@ bool assignable(Type *lhs, Type *rhs) {
     if (is_integer(lhs) && is_integer(rhs))
         return true;
     if (is_pointer_compat(lhs))
-        return is_pointer_compat(rhs);
+        return rhs == type_int || is_pointer_compat(rhs);
 
     debug("[internal] assignable %d %d", lhs->ty, rhs->ty);
     return false;
