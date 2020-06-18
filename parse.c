@@ -12,8 +12,8 @@ Environment *aliases;
 void toplevel();
 Type *consume_type_spec();
 Type *type_spec();
-Node *consume_declarator(Type*);
-Node *declarator(Type*);
+Node *consume_declarator(Type* typ);
+Node *declarator(Type* typ);
 
 Func *parse_func(Node *decl);
 Type *parse_struct(Location *start);
@@ -81,14 +81,18 @@ void toplevel() {
 
         // TODO: Ideally want to stop this ad-hoc
         Type *aliased = calloc(1, sizeof(Type));
-        *aliased = *typ;
+        aliased->ty = typ->ty;
+        aliased->ptr_to = typ->ptr_to;
+        aliased->array_size = typ->array_size;
+        aliased->strct = typ->strct;
         aliased->enum_decl = false;
+        aliased->enums = typ->enums;
 
         env_push(aliases, decl->name, aliased);
         return;
     }
 
-    bool is_extern = consume_keyword("extern");
+    bool is_extern = consume_keyword("extern") != NULL;
 
     Type *typ = type_spec();
     Node *decl = consume_declarator(typ);

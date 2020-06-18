@@ -33,36 +33,38 @@ Token *new_token(Token_kind kind, char *str, int len) {
     return tok;
 }
 
+char *ops[46] = {
+    "...",
+    "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|=",
+    "&&", "||", "==", "!=", "<=", ">=", "<<", ">>", "->", "++", "--",
+    "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
+    "{", "}", ",", "&", "[", "]",
+    "!", "?", ":", "|", "^", "%", ".", "~"
+};
+
 char *mem_op(char *p) {
-    static char *tkids[] = {
-        "...",
-        "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|=",
-        "&&", "||", "==", "!=", "<=", ">=", "<<", ">>", "->", "++", "--",
-        "+", "-", "*", "/", "(", ")", "<", ">", "=", ";",
-        "{", "}", ",", "&", "[", "]",
-        "!", "?", ":", "|", "^", "%", ".", "~",
-    };
-    int tkids_len = sizeof(tkids) / sizeof(char*);
+    int ops_len = sizeof(ops) / sizeof(char*);
 
     int plen = strlen(p);
-    for (int i = 0; i < tkids_len; i++) {
-        int ilen = strlen(tkids[i]);
-        if (plen >= ilen && !strncmp(p, tkids[i], ilen))
-            return tkids[i];
+    for (int i = 0; i < ops_len; i++) {
+        int ilen = strlen(ops[i]);
+        if (plen >= ilen && !strncmp(p, ops[i], ilen))
+            return ops[i];
     }
     return NULL;
 }
 
-Token *mem_kwd(char *p, int len) {
-    static char *tkids[] = {
-        "return", "if", "else", "while", "for", "typedef", "sizeof", "struct", "do",
-        "break", "continue", "extern", "switch", "case", "default", "enum"
-    };
-    int tkids_len = sizeof(tkids) / sizeof(char*);
+char *kwds[16] = {
+    "return", "if", "else", "while", "for", "typedef", "sizeof", "struct", "do",
+    "break", "continue", "extern", "switch", "case", "default", "enum"
+};
 
-    for (int i = 0; i < tkids_len; i++) {
-        int ilen = strlen(tkids[i]);
-        if (len == ilen && !strncmp(p, tkids[i], ilen))
+Token *mem_kwd(char *p, int len) {
+    int kwds_len = sizeof(kwds) / sizeof(char*);
+
+    for (int i = 0; i < kwds_len; i++) {
+        int ilen = strlen(kwds[i]);
+        if (len == ilen && !strncmp(p, kwds[i], ilen))
             return new_token(TK_KWD, p, ilen);
     }
     return NULL;
@@ -191,4 +193,3 @@ void tokenize(char *p) {
         error_loc2(loc_line, loc_column, "an unknown character was found");
     }
 }
-
