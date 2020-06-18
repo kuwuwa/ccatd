@@ -371,53 +371,50 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_COND) {
+        int lb = label_num++;
         gen_expr(node->cond); // +8
         printf("  pop rax\n"
                "  cmp rax, 0\n"
-               "  je .Lcond_else%d\n", label_num);
+               "  je .Lcond_else%d\n", lb);
         stack_depth -= 8;
         gen_expr(node->lhs); // +8
         stack_depth -= 8;
         printf("  jmp .Lcond_end%d\n"
-               ".Lcond_else%d:\n", label_num, label_num);
+               ".Lcond_else%d:\n", lb, lb);
         gen_expr(node->rhs); // +8
-        printf(".Lcond_end%d:\n", label_num);
-
-        label_num++;
+        printf(".Lcond_end%d:\n", lb);
         return;
     }
 
     if (node->kind == ND_LAND) {
+        int lb = label_num++;
         printf("# logical AND operation\n");
         gen_expr(node->lhs);
         printf("  cmp rax, 0\n"
-               "  je .Land_end%d\n", label_num);
+               "  je .Land_end%d\n", lb);
         printf("  pop rax\n");
         gen_expr(node->rhs);
         printf("  cmp rax, 0\n"
-               "  je .Land_end%d\n", label_num);
+               "  je .Land_end%d\n", lb);
         printf("  pop rax\n"
                "  push 1\n");
-        printf(".Land_end%d:\n", label_num);
-
-        label_num++;
+        printf(".Land_end%d:\n", lb);
         return;
     }
 
     if (node->kind == ND_LOR) {
+        int lb = label_num++;
         printf("# logical OR operation\n");
         gen_expr(node->lhs);
         printf("  cmp rax, 0\n"
-               "  jne .Lor_true%d\n", label_num);
+               "  jne .Lor_true%d\n", lb);
         gen_expr(node->rhs);
         printf("  cmp rax, 0\n"
-               "  je .Lor_end%d\n", label_num);
-        printf(".Lor_true%d:\n", label_num);
+               "  je .Lor_end%d\n", lb);
+        printf(".Lor_true%d:\n", lb);
         printf("  pop rax\n"
                "  push 1\n");
-        printf(".Lor_end%d:\n", label_num);
-
-        label_num++;
+        printf(".Lor_end%d:\n", lb);
         return;
     }
 
@@ -653,25 +650,24 @@ void gen_stmt(Node *node) {
     }
 
     if (node->kind == ND_IF) {
+        int lb = label_num++;
         printf("# if statement\n");
         gen_expr(node->cond);
         printf("  pop rax\n"
                "  cmp rax, 0\n");
         stack_depth -= 8;
         if (node->rhs == NULL) {
-            printf("  je .Lend_if%d\n", label_num);
+            printf("  je .Lend_if%d\n", lb);
             gen_stmt(node->lhs);
-            printf(".Lend_if%d:\n", label_num);
+            printf(".Lend_if%d:\n", lb);
         } else {
-            printf("  je  .Lelse%d\n", label_num);
+            printf("  je  .Lelse%d\n", lb);
             gen_stmt(node->lhs);
-            printf("  jmp .Lend_if%d\n", label_num);
-            printf(".Lelse%d:\n", label_num);
+            printf("  jmp .Lend_if%d\n", lb);
+            printf(".Lelse%d:\n", lb);
             gen_stmt(node->rhs);
-            printf(".Lend_if%d:\n", label_num);
+            printf(".Lend_if%d:\n", lb);
         }
-
-        label_num += 1;
         return;
     }
 
