@@ -208,8 +208,6 @@ extern Map *global_vars;
 extern Vec *string_literals;
 extern Environment *builtin_aliases;
 
-Environment *environment;
-
 void parse();
 
 Node *mknum(int v, Location *loc);

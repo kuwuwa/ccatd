@@ -31,7 +31,7 @@ Node *logical_or();
 Node *logical_and();
 Node *inclusive_or();
 Node *exclusive_or();
-Node *and();
+Node *and_expr();
 Node *equality();
 Node *relational();
 Node *shift();
@@ -216,9 +216,9 @@ Type *parse_struct(Location *start) {
             : fields;
 
         // TODO: ad-hoc, might not be correct
-        Type *alias;
-        if ((alias = map_find(aliases->map, strc->name)) != NULL)
-            alias->strct = strc;
+        Type *alias = map_find(aliases->map, strc->name);
+        if (alias != NULL)
+            alias->strct->fields = strc->fields;
     }
 
     return typ;
@@ -525,13 +525,13 @@ Node *inclusive_or() {
 }
 
 Node *exclusive_or() {
-    Node *node = and();
+    Node *node = and_expr();
     for (Token *tk; (tk = consume_keyword("^"));)
-        node = binop(ND_XOR, node, and(), tk->loc);
+        node = binop(ND_XOR, node, and_expr(), tk->loc);
     return node;
 }
 
-Node *and() {
+Node *and_expr() {
     Node *node = equality();
     for (Token *tk; (tk = consume_keyword("&"));)
         node = binop(ND_AND, node, equality(), tk->loc);

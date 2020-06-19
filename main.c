@@ -94,8 +94,10 @@ int main(int argc, char **argv) {
 
     sema_globals();
 
-    for (int i = 0; i < vec_len(functions); i++)
-        sema_func(vec_at(functions, i));
+    for (int i = 0; i < vec_len(functions); i++) {
+        Func *func = vec_at(functions, i);
+        sema_func(func);
+    }
 
     printf("  .intel_syntax noprefix\n"
            "  .globl main\n");

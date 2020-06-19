@@ -132,7 +132,7 @@ Node *gen_const_calc(Node *node) {
         gen_const_calc(node->lhs);
         gen_const_calc(node->rhs);
         if (is_integer(node->lhs->type) && is_integer(node->rhs->type)) {
-            node->type = ND_NUM;
+            node->type = binary_int_op_result(node->lhs->type, node->rhs->type);
             node->val = node->lhs->val + node->rhs->val;
         } else {
             if (is_pointer_compat(node->rhs->type)) {
@@ -156,7 +156,7 @@ Node *gen_const_calc(Node *node) {
         gen_const_calc(node->lhs);
         gen_const_calc(node->rhs);
         if (is_integer(node->lhs->type) && is_integer(node->rhs->type)) {
-            node->type = ND_NUM;
+            node->type = binary_int_op_result(node->lhs->type, node->rhs->type);
             node->val = node->lhs->val - node->rhs->val;
         } else {
             if (node->lhs->kind == ND_ADD) {

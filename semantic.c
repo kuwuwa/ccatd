@@ -251,9 +251,9 @@ void sema_block(Vec *block, Func *func) {
 }
 
 void sema_case(Node *node) {
-    if (node->kind == ND_NUM)
+    if (node->kind == ND_NUM || node->is_enum)
         return;
-    error_loc(node->loc, "[semantic] a term cannot be deduced to an integer");
+    error_loc(node->loc, "[semantic] cannot be deduced to an integer");
 }
 
 void sema_switch(Node *node, Func *func) {
@@ -265,6 +265,7 @@ void sema_switch(Node *node, Func *func) {
     for (int i = 0; i < len; i++) {
         Node *stmt = vec_at(node->block, i);
         if (stmt->kind == ND_CASE) {
+            sema_expr(stmt->lhs, func);
             sema_case(stmt->lhs);
             stmt->name = gen_loop_label("case");
         } else if (stmt->kind == ND_DEFAULT) {
@@ -288,7 +289,7 @@ void sema_stmt(Node *node, Func *func) {
         if (node->rhs != NULL) {
             if (node->lhs->type->ty == TY_ARRAY) {
                 if (node->lhs->type->ptr_to->ty == TY_CHAR && node->rhs->kind == ND_STRING)
-                    ;
+                    {}
                 else if (node->rhs->kind == ND_ARRAY)
                     sema_array(node->lhs->type, node->rhs, func);
                 else
@@ -464,7 +465,7 @@ Type *sema_expr_assign(Node *node, Func *func) {
             return lty;
         break;
     default:
-        ;
+        {}
     }
 
     if (binary_int_op_result(lty, rty) == NULL)
@@ -492,6 +493,7 @@ void sema_expr(Node* node, Func *func) {
         node->kind = resolved_global->kind;
         node->type = resolved_global->type;
         node->val = resolved_global->val;
+        node->is_enum = resolved_global->is_enum;
         return;
     }
     case ND_SEQ:
