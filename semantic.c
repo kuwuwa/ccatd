@@ -550,9 +550,16 @@ void sema_expr(Node* node, Func *func) {
         sema_expr(node->lhs, func);
         sema_expr(node->rhs, func);
 
-        if (!eq_type(node->lhs->type, node->rhs->type))
+        Type *lty = node->lhs->type;
+        Type *rty = node->rhs->type;
+        if (is_integer(lty) && is_integer(rty))
+            node->type = binary_int_op_result(lty, rty);
+        else if (is_pointer_compat(lty) && is_pointer_compat(rty))
+            node->type = ptr_of(type_void); // ???
+        else if (eq_type(lty, rty))
+            node->type = lty;
+        else
             error_loc(node->loc, "[semantic] type mismatch in a conditional expression");
-        node->type = node->lhs->type;
         return;
     case ND_ATTR: {
         sema_expr(node->lhs, func);
