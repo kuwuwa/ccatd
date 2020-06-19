@@ -152,6 +152,7 @@ typedef enum {
     ND_STRING,
     ND_ARRAY,
     ND_ATTR,
+    ND_CAST,
 
     // statements
     ND_VARDECL,

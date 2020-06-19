@@ -321,6 +321,12 @@ void gen_expr(Node *node) {
         return;
     }
 
+    if (node->kind == ND_CAST) {
+        gen_expr(node->lhs);
+        node->lhs->type = node->type;
+        return;
+    }
+
     if (node->kind == ND_SIZEOF) {
         printf("  mov rax, %d\n"
                "  push %d\n", node->val, node->val);

@@ -37,6 +37,7 @@ Node *relational();
 Node *shift();
 Node *add();
 Node *mul();
+Node *cast();
 Node *unary();
 Node *postfix();
 Node *primary();
@@ -590,17 +591,46 @@ Node *add() {
 }
 
 Node *mul() {
-    Node *node = unary();
+    Node *node = cast();
     for (Token *tk;;) {
         if ((tk = consume_keyword("*")))
-            node = binop(ND_MUL, node, unary(), tk->loc);
+            node = binop(ND_MUL, node, cast(), tk->loc);
         else if ((tk = consume_keyword("/")))
-            node = binop(ND_DIV, node, unary(), tk->loc);
+            node = binop(ND_DIV, node, cast(), tk->loc);
         else if ((tk = consume_keyword("%")))
-            node = binop(ND_MOD, node, unary(), tk->loc);
+            node = binop(ND_MOD, node, cast(), tk->loc);
         else break;
     }
     return node;
+}
+
+Node *consume_cast() {
+    int backtrack = index;
+    Token *start = consume_keyword("(");
+    if (start == NULL)
+        return NULL;
+
+    Type *typ = consume_type_identifier();
+    if (typ == NULL) {
+        index = backtrack;
+        return NULL;
+    }
+    while (consume_keyword("*"))
+        typ = ptr_of(typ);
+    expect_keyword(")");
+
+    Node *node = mknode(ND_CAST, start->loc);
+    node->type = typ;
+    node->lhs = cast();
+    return node;
+}
+
+Node *cast() {
+    Node *cast_expr = consume_cast();
+    if (cast_expr != NULL)
+        return cast_expr;
+
+    return unary();
 }
 
 Node *parse_sizeof(Location *loc) {

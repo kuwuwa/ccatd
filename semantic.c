@@ -573,6 +573,11 @@ void sema_expr(Node* node, Func *func) {
         }
         error_loc(node->loc, "[semantic] the given attribute doesn't exist");
     }
+    case ND_CAST:
+        sema_expr(node->lhs, func);
+        if (!assignable(node->type, node->lhs->type))
+            error_loc(node->loc, "[semantic] cast not appliable");
+        return;
     case ND_PREINCR: case ND_PREDECR: case ND_POSTINCR: case ND_POSTDECR: {
         sema_lval(node->lhs, func);
         Type *lty = node->lhs->type;

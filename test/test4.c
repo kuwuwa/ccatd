@@ -166,7 +166,7 @@ int main() {
     ENUM en2 = 30;
     int eno = E2;
 
-    struct H h;
+    struct H *h = (void*)0;
 
     return 0;
 }
