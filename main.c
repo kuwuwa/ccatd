@@ -7,9 +7,10 @@ void append_type_param(Vec *params, Type* t) {
     vec_push(params, node);
 }
 
-void push_function(char *name, Type **arg_types, int argc, Type *ret_type) {
+void push_function(char *name, Type **arg_types, int argc, Type *ret_type, bool is_varargs) {
     Func *func = calloc(1, sizeof(Func));
     func->name = name;
+    func->is_varargs = is_varargs;
     func->params = vec_new();
     for (int i = 0; i < argc; i++)
         append_type_param(func->params, arg_types[i]);
@@ -47,16 +48,19 @@ void init() {
     // semantic
 
     func_env = map_new();
-    push_function("foo", NULL, 0, type_void);
+    push_function("foo", NULL, 0, type_void, false);
 
     Type* bar_args[3] = {type_int, type_int, type_int};
-    push_function("bar", bar_args, 3, type_int);
+    push_function("bar", bar_args, 3, type_int, false);
 
     Type *print_args[1] = {ptr_of(type_char)};
-    push_function("print", print_args, 1, type_void);
+    push_function("print", print_args, 1, type_void, false);
 
     Type *assert_equals_args[2] = {type_int, type_int};
-    push_function("assert_equals", assert_equals_args, 2, type_int);
+    push_function("assert_equals", assert_equals_args, 2, type_int, false);
+
+    Type *builtin_va_start_args[1] = {type_int};
+    push_function("__builtin_va_start", builtin_va_start_args, 1, type_void, true);
 }
 
 char *read_file(char *path) {
@@ -107,7 +111,8 @@ int main(int argc, char **argv) {
     int len = vec_len(functions);
     for (int i = 0; i < len; i++) {
         Func *func = vec_at(functions, i);
-        printf("  .globl %s\n", func->name);
+        if (!func->is_static)
+            printf("  .globl %s\n", func->name);
     }
 
     for (int i = 0; i < len; i++) {

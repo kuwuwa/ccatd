@@ -9,53 +9,53 @@ Environment *enum_env;
 Environment *builtin_aliases;
 Environment *aliases;
 
-void toplevel();
-Type *consume_type_spec();
-Type *type_spec();
-Node *consume_declarator(Type* typ);
-Node *declarator(Type* typ);
+static void toplevel();
+static Type *consume_type_spec();
+static Type *type_spec();
+static Node *consume_declarator(Type* typ);
+static Node *declarator(Type* typ);
 
-Func *parse_func(Node *decl);
-Type *parse_struct(Location *start);
-Type *parse_enum(Location *start);
+static Func *parse_func(Node *decl);
+static Type *parse_struct(Location *start);
+static Type *parse_enum(Location *start);
 
-Vec *block();
-Node *stmt();
+static Vec *block();
+static Node *stmt();
 
-Node *initializer();
+static Node *initializer();
 
-Node *expr();
-Node *assignment();
-Node *conditional();
-Node *logical_or();
-Node *logical_and();
-Node *inclusive_or();
-Node *exclusive_or();
-Node *and_expr();
-Node *equality();
-Node *relational();
-Node *shift();
-Node *add();
-Node *mul();
-Node *cast();
-Node *unary();
-Node *postfix();
-Node *primary();
-Vec *args();
+static Node *expr();
+static Node *assignment();
+static Node *conditional();
+static Node *logical_or();
+static Node *logical_and();
+static Node *inclusive_or();
+static Node *exclusive_or();
+static Node *and_expr();
+static Node *equality();
+static Node *relational();
+static Node *shift();
+static Node *add();
+static Node *mul();
+static Node *cast();
+static Node *unary();
+static Node *postfix();
+static Node *primary();
+static Vec *args();
 
-Token *lookahead_any();
-Token *lookahead(Token_kind kind);
-Token *lookahead_keyword(char *str);
-Token *consume(Token_kind kind);
-Token *consume_keyword(char *str);
-Token *expect(Token_kind kind);
-Token *expect_keyword(char *str);
-Token *consume_value_identifier();
-Token *value_identifier();
-Type *consume_type_identifier();
+static Token *lookahead_any();
+static Token *lookahead(Token_kind kind);
+static Token *lookahead_keyword(char *str);
+static Token *consume(Token_kind kind);
+static Token *consume_keyword(char *str);
+static Token *expect(Token_kind kind);
+static Token *expect_keyword(char *str);
+static Token *consume_value_identifier();
+static Token *value_identifier();
+static Type *consume_type_identifier();
 
-Node *mknode(Node_kind kind, Location *loc);
-Node *binop(Node_kind kind, Node *lhs, Node *rhs, Location *loc);
+static Node *mknode(Node_kind kind, Location *loc);
+static Node *binop(Node_kind kind, Node *lhs, Node *rhs, Location *loc);
 Node *mknum(int v, Location *loc);
 
 // Parse
@@ -73,7 +73,7 @@ void parse() {
         toplevel();
 }
 
-void toplevel() {
+static void toplevel() {
     Token *tk;
     if ((tk = consume_keyword("typedef"))) {
         Type *typ = type_spec();
@@ -92,12 +92,26 @@ void toplevel() {
         return;
     }
 
-    bool is_extern = consume_keyword("extern") != NULL;
+    bool is_extern = false;
+    bool is_static = false;
+    while (true) {
+        if ((tk = consume_keyword("extern")) != NULL) {
+            if (is_extern)
+                error_loc(tk->loc, "[parse] duplicate extern qualifier");
+            is_extern = true;
+        } else if ((tk = consume_keyword("static")) != NULL) {
+            if (is_extern)
+                error_loc(tk->loc, "[parse] duplicate static qualifier");
+            is_static = true;
+        } else
+            break;
+    }
 
     Type *typ = type_spec();
     Node *decl = consume_declarator(typ);
     if (decl != NULL && is_func(decl->type)) {
         Func *func = parse_func(decl);
+        func->is_static = is_static;
         if (consume_keyword(";")) {
             func->is_extern = true;
         } else {
@@ -116,6 +130,7 @@ void toplevel() {
         if (decl != NULL) {
             decl->kind = ND_GVAR;
             decl->is_extern = is_extern;
+            decl->is_static = is_static;
 
             decl->rhs = NULL;
             if (consume_keyword("=")) {
@@ -131,14 +146,14 @@ void toplevel() {
     }
 }
 
-Node *param() {
+static Node *param() {
     Type *typ = type_spec();
     Node *p = declarator(typ);
     p->kind = ND_VAR;
     return p;
 }
 
-void params(Func *fundecl) {
+static void params(Func *fundecl) {
     fundecl->params = vec_new();
     expect_keyword("(");
     if (consume_keyword(")"))
@@ -160,7 +175,7 @@ void params(Func *fundecl) {
     }
 }
 
-Func *parse_func(Node *decl) {
+static Func *parse_func(Node *decl) {
     Func *func = calloc(1, sizeof(Func));
     func->loc = decl->loc;
     func->name = decl->name;
@@ -169,7 +184,7 @@ Func *parse_func(Node *decl) {
     return func;
 }
 
-Type *parse_struct(Location *start) {
+static Type *parse_struct(Location *start) {
     Token *strc_id = consume(TK_IDT);
     Vec *fields = NULL;
     if (consume_keyword("{")) {
@@ -231,7 +246,7 @@ Type *parse_struct(Location *start) {
     return typ;
 }
 
-Type *parse_enum(Location *start) {
+static Type *parse_enum(Location *start) {
     Token *enum_id = consume(TK_IDT);
 
     Type *typ = calloc(1, sizeof(Type));
@@ -280,7 +295,7 @@ Type *parse_enum(Location *start) {
     return typ;
 }
 
-Type *consume_type_spec() {
+static Type *consume_type_spec() {
     Token *tk;
     if ((tk = consume_keyword("struct")))
         return parse_struct(tk->loc);
@@ -289,14 +304,14 @@ Type *consume_type_spec() {
     return consume_type_identifier();
 }
 
-Type *type_spec() {
+static Type *type_spec() {
     Type *typ = consume_type_spec();
     if (typ == NULL)
         error_loc(lookahead_any()->loc, "[parse] type expected");
     return typ;
 }
 
-Node *consume_declarator(Type *spec) {
+static Node *consume_declarator(Type *spec) {
     Type *typ = spec;
     while (consume_keyword("*")) typ = ptr_of(typ);
 
@@ -325,14 +340,14 @@ Node *consume_declarator(Type *spec) {
     return decl;
 }
 
-Node *declarator(Type *spec) {
+static Node *declarator(Type *spec) {
     Node *decl = consume_declarator(spec);
     if (decl == NULL)
         error_loc(lookahead_any()->loc, "[parse] identifier expected in declarator");
     return decl;
 }
 
-Vec *block() {
+static Vec *block() {
     variable_env = env_new(variable_env);
     struct_env = env_new(struct_env);
     enum_env = env_new(enum_env);
@@ -348,7 +363,7 @@ Vec *block() {
     return vec;
 }
 
-Node *stmt() {
+static Node *stmt() {
     Token *tk;
     Node *node;
     Type *typ;
@@ -440,7 +455,7 @@ Node *stmt() {
 
 // Expressions
 
-Node *initializer_list(Location *start) {
+static Node *initializer_list(Location *start) {
     Node *ret = mknode(ND_ARRAY, start);
     ret->block = vec_new();
     if (consume_keyword("}"))
@@ -454,14 +469,14 @@ Node *initializer_list(Location *start) {
     return ret;
 }
 
-Node *initializer() {
+static Node *initializer() {
     Token *tk = NULL;
     if ((tk = consume_keyword("{")))
         return initializer_list(tk->loc);
     return expr();
 }
 
-Node *expr() {
+static Node *expr() {
     Node *node = assignment();
     for (Token *tk; (tk = consume_keyword(","));)
         node = binop(ND_SEQ, node, assignment(), tk->loc);
@@ -469,7 +484,7 @@ Node *expr() {
 }
 
 // TODO: assignment ::= conditional | unary unary-op assignment
-Node *assignment() {
+static Node *assignment() {
     Node *node = conditional();
     Token *tk;
     if ((tk = consume_keyword("=")))
@@ -497,7 +512,7 @@ Node *assignment() {
     return node;
 }
 
-Node *conditional() {
+static Node *conditional() {
     Node *cond = logical_or();
     if (!consume_keyword("?"))
         return cond;
@@ -510,42 +525,42 @@ Node *conditional() {
     return ret;
 }
 
-Node *logical_or() {
+static Node *logical_or() {
     Node *node = logical_and();
     for (Token *tk; (tk = consume_keyword("||"));)
         node = binop(ND_LOR, node, logical_and(), tk->loc);
     return node;
 }
 
-Node *logical_and() {
+static Node *logical_and() {
     Node *node = inclusive_or();
     for (Token *tk; (tk = consume_keyword("&&"));)
         node = binop(ND_LAND, node, inclusive_or(), tk->loc);
     return node;
 }
 
-Node *inclusive_or() {
+static Node *inclusive_or() {
     Node *node = exclusive_or();
     for (Token *tk; (tk = consume_keyword("|"));)
         node = binop(ND_IOR, node, exclusive_or(), tk->loc);
     return node;
 }
 
-Node *exclusive_or() {
+static Node *exclusive_or() {
     Node *node = and_expr();
     for (Token *tk; (tk = consume_keyword("^"));)
         node = binop(ND_XOR, node, and_expr(), tk->loc);
     return node;
 }
 
-Node *and_expr() {
+static Node *and_expr() {
     Node *node = equality();
     for (Token *tk; (tk = consume_keyword("&"));)
         node = binop(ND_AND, node, equality(), tk->loc);
     return node;
 }
 
-Node *equality() {
+static Node *equality() {
     Node *node = relational();
     for (Token *tk;;) {
         if ((tk = consume_keyword("==")))
@@ -557,7 +572,7 @@ Node *equality() {
     return node;
 }
 
-Node *relational() {
+static Node *relational() {
     Node *node = shift();
     for (Token *tk;;) {
         if ((tk = consume_keyword("<")))
@@ -573,7 +588,7 @@ Node *relational() {
     return node;
 }
 
-Node *shift() {
+static Node *shift() {
     Node *node = add();
     for (Token *tk;;) {
         if ((tk = consume_keyword("<<")))
@@ -585,7 +600,7 @@ Node *shift() {
     return node;
 }
 
-Node *add() {
+static Node *add() {
     Node *node = mul();
     for (Token *tk;;) {
         if ((tk = consume_keyword("+")))
@@ -597,7 +612,7 @@ Node *add() {
     return node;
 }
 
-Node *mul() {
+static Node *mul() {
     Node *node = cast();
     for (Token *tk;;) {
         if ((tk = consume_keyword("*")))
@@ -611,7 +626,7 @@ Node *mul() {
     return node;
 }
 
-Node *consume_cast() {
+static Node *consume_cast() {
     int backtrack = index;
     Token *start = consume_keyword("(");
     if (start == NULL)
@@ -632,7 +647,7 @@ Node *consume_cast() {
     return node;
 }
 
-Node *cast() {
+static Node *cast() {
     Node *cast_expr = consume_cast();
     if (cast_expr != NULL)
         return cast_expr;
@@ -640,7 +655,7 @@ Node *cast() {
     return unary();
 }
 
-Node *parse_sizeof(Location *loc) {
+static Node *parse_sizeof(Location *loc) {
     if (consume_keyword("(")) {
         Node *node = parse_sizeof(loc);
         expect_keyword(")");
@@ -656,7 +671,7 @@ Node *parse_sizeof(Location *loc) {
     return binop(ND_SIZEOF, unary(), NULL, loc);
 }
 
-Node *unary() {
+static Node *unary() {
     Token *tk;
     return (tk = consume_keyword("sizeof")) ? parse_sizeof(tk->loc)
          : (tk = consume_keyword("++"))     ? binop(ND_PREINCR, unary(), NULL, tk->loc)
@@ -670,7 +685,7 @@ Node *unary() {
          : postfix();
 }
 
-Node *postfix() {
+static Node *postfix() {
     Node *node = primary();
     for (Token *tk;;) {
         if ((tk = consume_keyword("["))) {
@@ -700,7 +715,7 @@ Node *postfix() {
     return node;
 }
 
-Node *primary() {
+static Node *primary() {
     Token *tk = NULL;
     Node *node = NULL;
     if ((tk = consume_keyword("("))) {
@@ -736,7 +751,7 @@ Node *primary() {
     return node;
 }
 
-Vec *args() {
+static Vec *args() {
     Vec *vec = vec_new();
     if (consume_keyword(")"))
         return vec;
@@ -750,23 +765,23 @@ Vec *args() {
 
 // Parse helpers
 
-Token *lookahead_any() {
+static Token *lookahead_any() {
     if (index >= vec_len(tokens))
         return NULL;
     return vec_at(tokens, index);
 }
 
-Token *lookahead(Token_kind kind) {
+static Token *lookahead(Token_kind kind) {
     Token *tk = lookahead_any();
     return (tk != NULL && tk->kind == kind) ? tk : NULL;
 }
 
-Token *lookahead_keyword(char *str) {
+static Token *lookahead_keyword(char *str) {
     Token *tk = lookahead(TK_KWD);
     return (tk != NULL && !strcmp(str, tk->str)) ? tk : NULL;
 }
 
-Token *consume(Token_kind kind) {
+static Token *consume(Token_kind kind) {
     Token *tk = vec_at(tokens, index);
     if (tk->kind != kind)
         return NULL;
@@ -774,7 +789,7 @@ Token *consume(Token_kind kind) {
     return tk;
 }
 
-Token *consume_keyword(char *str) {
+static Token *consume_keyword(char *str) {
     Token *tk = lookahead(TK_KWD);
     if (tk == NULL || strcmp(str, tk->str))
         return NULL;
@@ -782,7 +797,7 @@ Token *consume_keyword(char *str) {
     return tk;
 }
 
-Token *consume_value_identifier() {
+static Token *consume_value_identifier() {
     Token *tk = lookahead(TK_IDT);
     if (tk == NULL)
         return NULL;
@@ -793,7 +808,7 @@ Token *consume_value_identifier() {
     return tk;
 }
 
-Token *value_identifier() {
+static Token *value_identifier() {
     Token *tk = lookahead(TK_IDT);
     Type *typ = env_find(aliases, tk->str);
     if (typ != NULL)
@@ -802,7 +817,7 @@ Token *value_identifier() {
     return tk;
 }
 
-Token *expect(Token_kind kind) {
+static Token *expect(Token_kind kind) {
     Token *tk = lookahead_any();
     if (tk->kind != kind)
         error_loc(tk->loc, "%s expected\n", kind);
@@ -810,7 +825,7 @@ Token *expect(Token_kind kind) {
     return tk;
 }
 
-Token *expect_keyword(char* str) {
+static Token *expect_keyword(char* str) {
     Token *tk = lookahead_any();
     if (tk->kind != TK_KWD || strcmp(str, tk->str))
         error_loc(tk->loc, "\"%s\" expected", str);
@@ -818,7 +833,7 @@ Token *expect_keyword(char* str) {
     return tk;
 }
 
-Type *consume_type_identifier() {
+static Type *consume_type_identifier() {
     Token *id = lookahead(TK_IDT);
     if (id == NULL)
         return NULL;
@@ -830,14 +845,14 @@ Type *consume_type_identifier() {
 
 // Node helpers
 
-Node *mknode(Node_kind kind, Location* loc) {
+static Node *mknode(Node_kind kind, Location* loc) {
     Node *node = calloc(1, sizeof(Node));
     node->kind = kind;
     node->loc = loc;
     return node;
 }
 
-Node *binop(Node_kind kind, Node *lhs, Node *rhs, Location *loc) {
+static Node *binop(Node_kind kind, Node *lhs, Node *rhs, Location *loc) {
     Node *node = mknode(kind, loc);
     node->lhs = lhs;
     node->rhs = rhs;

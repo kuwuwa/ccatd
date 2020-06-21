@@ -3,14 +3,14 @@
 char *arg_regs64[6] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
 
 void gen_globals();
-void gen_const(Type* t, Node* n);
-Node *gen_const_calc(Node* n);
-void gen_stmt(Node* n);
+static void gen_const(Type* t, Node* n);
+static Node *gen_const_calc(Node* n);
 void gen_func(Func* f);
-void gen_lval(Node* n);
-void gen_coeff_ptr(Type* t1, Type* t2);
-char *ax_of_type(Type* t);
-char *word_of_type(Type* t);
+static void gen_stmt(Node* n);
+static void gen_lval(Node* n);
+static void gen_coeff_ptr(Type* t1, Type* t2);
+static char *ax_of_type(Type* t);
+static char *word_of_type(Type* t);
 
 // generate global variables
 
@@ -18,7 +18,7 @@ void gen_globals() {
     printf("  .data\n");
     for (int i = 0; i < vec_len(global_vars->values); i++) {
         Node *global = vec_at(global_vars->values, i);
-        if (global->is_extern)
+        if (global->is_extern || global->is_static)
             continue;
 
         printf("  .globl %s\n", global->name);

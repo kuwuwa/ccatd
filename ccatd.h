@@ -182,6 +182,7 @@ struct Node {
     Location *loc;
     Token *attr;
     bool is_extern;
+    bool is_static;
     bool is_enum;
 };
 
@@ -194,6 +195,7 @@ struct Func {
     Map *global_vars;
     Location *loc;
     bool is_extern;
+    bool is_static;
     bool is_varargs;
 };
 

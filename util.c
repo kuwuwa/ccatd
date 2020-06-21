@@ -1,6 +1,6 @@
 #include "ccatd.h"
 
-bool debug_flag = true;
+static bool debug_flag = true;
 
 void error(char *fmt, ...) {
     va_list ap;

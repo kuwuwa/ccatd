@@ -54,9 +54,9 @@ char *mem_op(char *p) {
     return NULL;
 }
 
-char *kwds[16] = {
+char *kwds[17] = {
     "return", "if", "else", "while", "for", "typedef", "sizeof", "struct", "do",
-    "break", "continue", "extern", "switch", "case", "default", "enum"
+    "break", "continue", "extern", "static", "switch", "case", "default", "enum"
 };
 
 Token *mem_kwd(char *p, int len) {
