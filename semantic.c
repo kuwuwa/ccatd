@@ -183,6 +183,16 @@ void sema_type(Type* typ) {
         sema_type(typ->ptr_to);
 }
 
+bool type_sig_match(Type *l, Type *r) {
+    if (eq_type(l, r))
+        return true;
+
+    if (is_pointer_compat(l) && is_pointer_compat(r))
+        return true;
+
+    return false;
+}
+
 void sema_func(Func *func) {
     int params_len = vec_len(func->params);
     // no duplicate parameter
@@ -198,14 +208,10 @@ void sema_func(Func *func) {
         }
     }
 
-    if (func->is_extern) {
-        map_put(func_env, func->name, func);
-        return;
-    }
 
     Func *g = map_find(func_env, func->name);
     if (g != NULL) {
-        if (!g->is_extern)
+        if (!g->is_extern && !func->is_extern)
             error_loc(func->loc, "[semantic] a name conflict between functions");
 
         int params_len = vec_len(func->params);
@@ -213,11 +219,17 @@ void sema_func(Func *func) {
         for (int i = 0; matched && i < params_len; i++) {
             Node *fi = vec_at(func->params, i);
             Node *gi = vec_at(g->params, i);
-            matched = matched && eq_type(fi->type, gi->type);
+            matched = matched && type_sig_match(fi->type, gi->type);
         }
 
         if (!matched)
             error_loc(func->loc, "[semantic] function signature doesn't match with a previous declaration");
+    }
+
+    if (func->is_extern) {
+        if (g == NULL)
+            map_put(func_env, func->name, func);
+        return;
     }
 
     map_put(func_env, func->name, func);

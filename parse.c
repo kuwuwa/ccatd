@@ -80,7 +80,6 @@ void toplevel() {
         Node *decl = declarator(typ);
         expect_keyword(";");
 
-        // TODO: Ideally want to stop this ad-hoc
         Type *aliased = calloc(1, sizeof(Type));
         aliased->ty = typ->ty;
         aliased->ptr_to = typ->ptr_to;
@@ -212,13 +211,21 @@ Type *parse_struct(Location *start) {
         }
 
         strc->fields = (fields == NULL)
-            ? (fields = existing->strct->fields)
+            ? existing->strct->fields
             : fields;
 
-        // TODO: ad-hoc, might not be correct
-        Type *alias = map_find(aliases->map, strc->name);
-        if (alias != NULL)
-            alias->strct->fields = strc->fields;
+        Vec *as = aliases->map->values;
+        for (int i = 0; i < vec_len(as); i++) {
+            Type *tya = vec_at(as, i);
+            if (tya->ty != TY_STRUCT)
+                continue;
+            if (tya->strct->name != NULL && !strcmp(tya->strct->name, strc->name)) {
+                tya->strct = strc;
+                // char *k = vec_at(aliases->map->keys, i);
+                // map_put(aliases->map, k, typ);
+                break;
+            }
+        }
     }
 
     return typ;

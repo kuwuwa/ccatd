@@ -106,6 +106,11 @@ int main(int argc, char **argv) {
 
     int len = vec_len(functions);
     for (int i = 0; i < len; i++) {
+        Func *func = vec_at(functions, i);
+        printf("  .globl %s\n", func->name);
+    }
+
+    for (int i = 0; i < len; i++) {
         gen_func(vec_at(functions, i));
     }
     return 0;

@@ -1,6 +1,3 @@
-#include <stdlib.h>
-#include <string.h>
-
 #include "ccatd.h"
 
 // Vector
@@ -15,7 +12,7 @@ Vec *vec_new() {
     Vec *vec = calloc(1, sizeof(Vec));
     vec->len = 0;
     vec->cap = 8;
-    vec->data = calloc(8, sizeof(Node*));
+    vec->data = calloc(8, sizeof(Node));
     return vec;
 }
 
