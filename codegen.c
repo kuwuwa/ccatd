@@ -10,6 +10,7 @@ static void gen_stmt(Node* n, Func *f);
 static void gen_lval(Node* n, Func *f);
 static void gen_coeff_ptr(Type* t1, Type* t2);
 static char *ax_of_type(Type* t);
+static char *di_of_type(Type* t);
 static char *word_of_type(Type* t);
 
 // generate global variables
@@ -473,11 +474,14 @@ void gen_expr(Node *node, Func *func) {
         int sign = node->kind == ND_PREINCR ? 1 : -1;
         int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
         gen_lval(node->lhs, func);
-        printf("  mov rdi, [rax]\n"
-               "  add rdi, %d\n", incr);
-        printf("  mov [rax], rdi\n"
-               "  mov rax, rdi\n"
-               "  mov [rsp], rdi\n");
+
+        char *di = di_of_type(node->lhs->type);
+        char *ax = ax_of_type(node->lhs->type);
+        printf("  mov %s, [rax]\n", di);
+        printf("  add %s, %d\n", di, incr);
+        printf("  mov [rax], %s\n", di);
+        printf("  mov %s, %s\n", ax, di);
+        printf("  mov [rsp], %s\n", di);
         return;
     }
 
@@ -485,11 +489,14 @@ void gen_expr(Node *node, Func *func) {
         int sign = node->kind == ND_POSTINCR ? 1 : -1;
         int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
         gen_lval(node->lhs, func);
-        printf("  mov rdi, [rax]\n"
-               "  mov [rsp], rdi\n"
-               "  add rdi, %d\n", incr);
-        printf("  mov [rax], rdi\n"
-               "  mov rax, [rsp]\n");
+
+        char *di = di_of_type(node->lhs->type);
+        char *ax = ax_of_type(node->lhs->type);
+        printf("  mov %s, [rax]\n", di);
+        printf("  mov [rsp], %s\n", di);
+        printf("  add %s, %d\n", di, incr);
+        printf("  mov [rax], %s\n", di);
+        printf("  mov %s, [rsp]\n", ax);
         return;
     }
 
@@ -848,8 +855,8 @@ void gen_func(Func* func) {
     int local_vars_space = func->offset - 8 * vec_len(func->params);
     local_vars_space -= func->is_varargs ? 56 : 0;
     printf("  sub rsp, %d\n", local_vars_space);
-    stack_depth = func->offset;
     for (int i = 0; i < vec_len(func->block); i++) {
+        stack_depth = func->offset;
         printf("# %s statement %d\n", func->name, i);
         gen_stmt(vec_at(func->block, i), func);
     }
@@ -910,7 +917,7 @@ void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
     }
 }
 
-char *ax_of_type(Type *type) {
+static char *ax_of_type(Type *type) {
     if (type->ty == TY_ARRAY)
         return "rax";
     int size = type_size(type);
@@ -919,6 +926,17 @@ char *ax_of_type(Type *type) {
     if (size == 4)
         return "eax";
     return "rax";
+}
+
+static char *di_of_type(Type *type) {
+    if (type->ty == TY_ARRAY)
+        return "rdi";
+    int size = type_size(type);
+    if (size == 1)
+        return "dil";
+    if (size == 4)
+        return "edi";
+    return "rdi";
 }
 
 char *word_of_type(Type* type) {

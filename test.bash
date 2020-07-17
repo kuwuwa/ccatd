@@ -54,5 +54,6 @@ try_return 'test/test2.c' 0
 try_return 'test/test3.c' 0
 try_return 'test/test4.c' 0
 try_stdout 'test/test5.c' 'abcXYZabc12345'
+try_return 'test/test6.c' 0
 
 echo "Accepted!!"

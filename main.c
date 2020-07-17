@@ -83,8 +83,10 @@ char *read_file(char *path) {
     char *buf = calloc(1, size + 2);
     fread(buf, size, 1, fp);
 
-    if (size == 0 || buf[size - 1] != '\n')
-        buf[size++] = '\n';
+    if (size == 0 || buf[size - 1] != '\n') {
+        buf[size] = '\n';
+        size++;
+    }
     buf[size] = '\0';
     fclose(fp);
     return buf;
