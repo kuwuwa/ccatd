@@ -11,7 +11,7 @@ build: $(OBJS)
 	ctags -R
 
 test: build
-	bash ./test.bash
+	APP=ccatd bash ./test.bash
 
 clean:
 	rm -rf ccatd $(patsubst %.c,%.o,$(SRCS)) _*

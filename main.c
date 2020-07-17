@@ -39,6 +39,11 @@ void init() {
     env_push(builtin_aliases, "int", type_int);
     env_push(builtin_aliases, "char", type_char);
 
+    env_push(builtin_aliases, "bool", type_char); // 1 bit
+    env_push(builtin_aliases, "long", type_int); // 8 bit
+    env_push(builtin_aliases, "size_t", type_int); // 8 bit
+
+
     // parse
 
     functions = vec_new();
@@ -59,7 +64,7 @@ void init() {
     Type *assert_equals_args[2] = {type_int, type_int};
     push_function("assert_equals", assert_equals_args, 2, type_int, false);
 
-    Type *builtin_va_start_args[1] = {type_int};
+    Type *builtin_va_start_args[1] = {type_void};
     push_function("__builtin_va_start", builtin_va_start_args, 1, type_void, true);
 }
 

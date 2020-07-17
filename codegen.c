@@ -6,8 +6,8 @@ void gen_globals();
 static void gen_const(Type* t, Node* n);
 static Node *gen_const_calc(Node* n);
 void gen_func(Func* f);
-static void gen_stmt(Node* n);
-static void gen_lval(Node* n);
+static void gen_stmt(Node* n, Func *f);
+static void gen_lval(Node* n, Func *f);
 static void gen_coeff_ptr(Type* t1, Type* t2);
 static char *ax_of_type(Type* t);
 static char *word_of_type(Type* t);
@@ -181,7 +181,7 @@ Node *gen_const_calc(Node *node) {
 int label_num = 0;
 int stack_depth = 0;
 
-void gen_expr(Node *node) {
+void gen_expr(Node *node, Func *func) {
     if (node->kind == ND_NUM) {
         // assuming `int'
         printf("  mov eax, %d\n", node->val);
@@ -199,7 +199,7 @@ void gen_expr(Node *node) {
         for (int i = 0; i < vec_len(string_literals); i++) {
             char *str = vec_at(string_literals, i);
             if (!strcmp(node->name, str)) {
-                printf("  mov rax, OFFSET FLAT:.LC%d\n", i);
+                printf("  mov rax, OFFSET .LC%d\n", i);
                 printf("  push rax\n");
                 stack_depth += 8;
                 return;
@@ -243,16 +243,16 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_SEQ) {
-        gen_expr(node->lhs);
+        gen_expr(node->lhs, func);
         printf("  pop rax\n");
         stack_depth -= 8;
-        gen_expr(node->rhs);
+        gen_expr(node->rhs, func);
         return;
     }
 
     if (node->kind == ND_ASGN) {
-        gen_lval(node->lhs);
-        gen_expr(node->rhs);
+        gen_lval(node->lhs, func);
+        gen_expr(node->rhs, func);
         char *ax = ax_of_type(node->type);
         printf("  pop rax\n"
                "  mov rdi, [rsp]\n");
@@ -263,10 +263,40 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_CALL) {
-        int arg_len = vec_len(node->block);
+        if (!strcmp("__builtin_va_start", node->name)) {
+            // assuming this call is in va_start called by a variadic function
+            printf("  mov rax, [rbp-56]\n"); // ap
+            printf("  mov rdi, [rbp]\n");
+            printf("  add rdi, QWORD PTR [rdi-8]\n");
+            printf("  sub rdi, 56\n");
+            printf("  mov DWORD PTR [rax], 48\n"); // gp_offset
+            printf("  mov DWORD PTR [rax+4], 304\n"); // fp_offset
+            printf("  mov QWORD PTR [rax+8], rdi\n"); // overflow_arg_area
+            printf("  mov QWORD PTR [rax+16], 0\n"); // reg_save_area
+            printf("  mov rax, 0\n"); // # of floating point parameters
+            printf("  push rax\n");
+            return;
+        }
+
         int revert_stack_depth = stack_depth;
-        for (int i = 0; i < arg_len; i++)
-            gen_expr(vec_at(node->block, i));
+        int arg_len = vec_len(node->block);
+        Func *called = map_find(func_env, node->name);
+        for (int i = 0; i < arg_len; i++) {
+            Node *e = vec_at(node->block, i);
+            gen_expr(e, func);
+
+            if (i >= vec_len(called->params)) // varargs
+                continue;
+            int size_arg = type_size(coerce_pointer(e->type));
+            Node *p = vec_at(called->params, i);
+            int size_param = type_size(p->type);
+            if (size_arg < size_param && type_size(coerce_pointer(e->type)) == 1) {
+                char *ax = ax_of_type(p->type);
+                printf("  movzb eax, al\n");
+                printf("  mov [rsp], %s\n", ax);
+            }
+        }
+
         for (int i = arg_len-1; i >= 0; i--)
             printf("  pop %s\n", arg_regs64[i]);
 
@@ -284,12 +314,12 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_ADDR) {
-        gen_lval(node->lhs);
+        gen_lval(node->lhs, func);
         return;
     }
 
     if (node->kind == ND_DEREF) {
-        gen_expr(node->lhs);
+        gen_expr(node->lhs, func);
         int size = type_size(node->type);
         if (size == 1)
             printf("  movsx eax, BYTE PTR [rax]\n");
@@ -303,7 +333,7 @@ void gen_expr(Node *node) {
 
     if (node->kind == ND_ATTR) {
         printf("# prepare attribute access\n");
-        gen_lval(node->lhs);
+        gen_lval(node->lhs, func);
         printf("# offset \n");
         printf("  add rax, %d\n", node->val);
         if (node->type->ty == TY_ARRAY) {
@@ -322,7 +352,7 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_CAST) {
-        gen_expr(node->lhs);
+        gen_expr(node->lhs, func);
         node->lhs->type = node->type;
         return;
     }
@@ -335,7 +365,7 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_NEG) {
-        gen_expr(node->lhs);
+        gen_expr(node->lhs, func);
         printf("  cmp rax, 0\n"
                "  sete al\n"
                "  movzb eax, al\n"
@@ -344,7 +374,7 @@ void gen_expr(Node *node) {
     }
 
     if (node->kind == ND_BCOMPL) {
-        gen_expr(node->lhs);
+        gen_expr(node->lhs, func);
         printf("  not rax\n"
                "  mov [rsp], rax\n");
         return;
@@ -352,7 +382,7 @@ void gen_expr(Node *node) {
 
     if (node->kind == ND_GVAR) {
         if (node->type->ty == TY_ARRAY) {
-            printf("  mov rax, OFFSET FLAT:%s\n", node->name);
+            printf("  mov rax, OFFSET %s\n", node->name);
         } else if (is_enum(node->type)) { // TODO: re-consider
             int len = vec_len(node->type->enums);
             for (int i = 0; i < len; i++) {
@@ -378,16 +408,16 @@ void gen_expr(Node *node) {
 
     if (node->kind == ND_COND) {
         int lb = label_num++;
-        gen_expr(node->cond); // +8
+        gen_expr(node->cond, func); // +8
         printf("  pop rax\n"
                "  cmp rax, 0\n"
                "  je .Lcond_else%d\n", lb);
         stack_depth -= 8;
-        gen_expr(node->lhs); // +8
+        gen_expr(node->lhs, func); // +8
         stack_depth -= 8;
         printf("  jmp .Lcond_end%d\n"
                ".Lcond_else%d:\n", lb, lb);
-        gen_expr(node->rhs); // +8
+        gen_expr(node->rhs, func); // +8
         printf(".Lcond_end%d:\n", lb);
         return;
     }
@@ -395,11 +425,11 @@ void gen_expr(Node *node) {
     if (node->kind == ND_LAND) {
         int lb = label_num++;
         printf("# logical AND operation\n");
-        gen_expr(node->lhs);
+        gen_expr(node->lhs, func);
         printf("  cmp rax, 0\n"
                "  je .Land_end%d\n", lb);
         printf("  pop rax\n");
-        gen_expr(node->rhs);
+        gen_expr(node->rhs, func);
         printf("  cmp rax, 0\n"
                "  je .Land_end%d\n", lb);
         printf("  pop rax\n"
@@ -411,10 +441,10 @@ void gen_expr(Node *node) {
     if (node->kind == ND_LOR) {
         int lb = label_num++;
         printf("# logical OR operation\n");
-        gen_expr(node->lhs);
+        gen_expr(node->lhs, func);
         printf("  cmp rax, 0\n"
                "  jne .Lor_true%d\n", lb);
-        gen_expr(node->rhs);
+        gen_expr(node->rhs, func);
         printf("  cmp rax, 0\n"
                "  je .Lor_end%d\n", lb);
         printf(".Lor_true%d:\n", lb);
@@ -426,9 +456,9 @@ void gen_expr(Node *node) {
 
     if (node->kind == ND_LSH || node->kind == ND_RSH) {
         printf("# prepare shift\n");
-        gen_expr(node->lhs);
+        gen_expr(node->lhs, func);
         printf("# right hand side\n");
-        gen_expr(node->rhs);
+        gen_expr(node->rhs, func);
         printf("  pop rcx\n");
         printf("  mov rax, [rsp]\n");
         stack_depth -= 8;
@@ -442,7 +472,7 @@ void gen_expr(Node *node) {
     if (node->kind == ND_PREINCR || node->kind == ND_PREDECR) {
         int sign = node->kind == ND_PREINCR ? 1 : -1;
         int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
-        gen_lval(node->lhs);
+        gen_lval(node->lhs, func);
         printf("  mov rdi, [rax]\n"
                "  add rdi, %d\n", incr);
         printf("  mov [rax], rdi\n"
@@ -454,7 +484,7 @@ void gen_expr(Node *node) {
     if (node->kind == ND_POSTINCR || node->kind == ND_POSTDECR) {
         int sign = node->kind == ND_POSTINCR ? 1 : -1;
         int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
-        gen_lval(node->lhs);
+        gen_lval(node->lhs, func);
         printf("  mov rdi, [rax]\n"
                "  mov [rsp], rdi\n"
                "  add rdi, %d\n", incr);
@@ -465,9 +495,9 @@ void gen_expr(Node *node) {
 
     if (ND_ADDEQ <= node->kind && node->kind <= ND_XOREQ) {
         printf("# prepare assignment operation\n");
-        gen_lval(node->lhs);
+        gen_lval(node->lhs, func);
         printf("# prepare assignment operation; right hand side\n");
-        gen_expr(node->rhs);
+        gen_expr(node->rhs, func);
 
         switch (node->kind) {
             case ND_LSHEQ: case ND_RSHEQ: {
@@ -541,9 +571,9 @@ void gen_expr(Node *node) {
     }
 
     printf("# prepare arithmetic operation\n");
-    gen_expr(node->lhs);
+    gen_expr(node->lhs, func);
     printf("# right hand side\n");
-    gen_expr(node->rhs);
+    gen_expr(node->rhs, func);
 
     printf("# arithmetic operation\n");
     printf("  pop rdi\n");
@@ -608,7 +638,7 @@ void gen_expr(Node *node) {
     printf("# end arithmetic operation\n");
 }
 
-void gen_stmt(Node *node) {
+void gen_stmt(Node *node, Func *func) {
     if (node->kind == ND_VARDECL) {
         if (node->rhs == NULL)
             return;
@@ -619,13 +649,13 @@ void gen_stmt(Node *node) {
             Type *elem_type = node->lhs->type->ptr_to;
             for (int i = 0; i < len; i++) {
                 printf("# local array initialization %d", i);
-                gen_lval(node->lhs);
+                gen_lval(node->lhs, func);
                 printf("  add rax, %d\n", i * type_size(elem_type));
                 printf("  mov [rsp], rax\n");
 
                 printf("# local array initialization %d; right hand side\n", i);
                 Node *e = vec_at(node->rhs->block, i);
-                gen_expr(e);
+                gen_expr(e, func);
                 printf("# local array initialization %d; assignment\n", i);
                 char *ax = ax_of_type(elem_type);
                 printf("  pop rax\n"
@@ -637,9 +667,9 @@ void gen_stmt(Node *node) {
         }
 
         printf("# variable declaration\n");
-        gen_lval(node->lhs);
+        gen_lval(node->lhs, func);
         printf("# variable declaration; right hand side\n");
-        gen_expr(node->rhs);
+        gen_expr(node->rhs, func);
         printf("# variable declaration; assignment\n");
         printf("  pop rax\n");
         printf("  pop rdi\n");
@@ -651,8 +681,9 @@ void gen_stmt(Node *node) {
 
     if (node->kind == ND_RETURN) {
         if (node->lhs != NULL) {
-            gen_expr(node->lhs);
+            gen_expr(node->lhs, func);
             printf("  pop rax\n");
+            stack_depth -= 8;
         }
         printf("  mov rsp, rbp\n"
                "  pop rbp\n"
@@ -663,20 +694,20 @@ void gen_stmt(Node *node) {
     if (node->kind == ND_IF) {
         int lb = label_num++;
         printf("# if statement\n");
-        gen_expr(node->cond);
+        gen_expr(node->cond, func);
         printf("  pop rax\n"
                "  cmp rax, 0\n");
         stack_depth -= 8;
         if (node->rhs == NULL) {
             printf("  je .Lend_if%d\n", lb);
-            gen_stmt(node->lhs);
+            gen_stmt(node->lhs, func);
             printf(".Lend_if%d:\n", lb);
         } else {
             printf("  je  .Lelse%d\n", lb);
-            gen_stmt(node->lhs);
+            gen_stmt(node->lhs, func);
             printf("  jmp .Lend_if%d\n", lb);
             printf(".Lelse%d:\n", lb);
-            gen_stmt(node->rhs);
+            gen_stmt(node->rhs, func);
             printf(".Lend_if%d:\n", lb);
         }
         return;
@@ -685,14 +716,14 @@ void gen_stmt(Node *node) {
     if (node->kind == ND_WHILE) {
         char *label_base = node->name;
         printf(".L%s_cont:\n", label_base);
-        gen_expr(node->cond);
+        gen_expr(node->cond, func);
         printf("# while jump\n");
         printf("  pop rax\n"
                "  cmp rax, 0\n");
         printf("  je .L%s_end\n", label_base);
         printf("# while body\n");
         stack_depth -= 8;
-        gen_stmt(node->body);
+        gen_stmt(node->body, func);
         printf("  jmp .L%s_cont\n", label_base);
         printf(".L%s_end:\n", label_base);
         return;
@@ -700,19 +731,19 @@ void gen_stmt(Node *node) {
 
     if (node->kind == ND_FOR) {
         if (node->lhs != NULL)
-            gen_stmt(node->lhs);
+            gen_stmt(node->lhs, func);
         printf(".L%s:\n", node->name);
         if (node->cond != NULL) {
-            gen_expr(node->cond);
+            gen_expr(node->cond, func);
             printf("  pop rax\n"
                    "  cmp rax, 0\n");
             printf("  je .L%s_end\n", node->name);
             stack_depth -= 8;
         }
-        gen_stmt(node->body);
+        gen_stmt(node->body, func);
         printf(".L%s_cont:\n", node->name);
         if (node->rhs != NULL)
-            gen_stmt(node->rhs);
+            gen_stmt(node->rhs, func);
         printf("  jmp .L%s\n", node->name);
         printf(".L%s_end:\n", node->name);
         return;
@@ -720,10 +751,10 @@ void gen_stmt(Node *node) {
 
     if (node->kind == ND_DOWHILE) {
         printf(".L%s:\n", node->name);
-        gen_stmt(node->body);
+        gen_stmt(node->body, func);
         printf("# prepare do-while repeat check\n");
         printf(".L%s_cont:\n", node->name);
-        gen_expr(node->cond);
+        gen_expr(node->cond, func);
         printf("# do-while repeat check\n");
         printf("  pop rax\n"
                "  cmp rax, 0\n");
@@ -748,12 +779,12 @@ void gen_stmt(Node *node) {
     if (node->kind == ND_BLOCK) {
         int len = vec_len(node->block);
         for (int i = 0; i < len; i++)
-            gen_stmt(vec_at(node->block, i));
+            gen_stmt(vec_at(node->block, i), func);
         return;
     }
 
     if (node->kind == ND_SWITCH) {
-        gen_expr(node->cond);
+        gen_expr(node->cond, func);
         printf("  pop rax\n");
         int len = vec_len(node->block);
         for (int i = 0; i < len; i++) {
@@ -775,7 +806,7 @@ void gen_stmt(Node *node) {
         if (!defaulted)
             printf("  jmp .L%s_end\n", node->name);
         for (int i = 0; i < len; i++)
-            gen_stmt(vec_at(node->block, i));
+            gen_stmt(vec_at(node->block, i), func);
         printf(".L%s_end:\n", node->name);
         return;
     }
@@ -785,26 +816,42 @@ void gen_stmt(Node *node) {
         return;
     }
 
-    gen_expr(node);
+    gen_expr(node, func);
     printf("  pop rax # throw away from stack\n");
     stack_depth -= 8;
 }
 
 void gen_func(Func* func) {
+    stack_depth = 0;
+    int params_len = vec_len(func->params);
     if (func->is_extern)
         return;
 
     printf("%s:\n", func->name);
     printf("  push rbp\n"
            "  mov rbp, rsp\n");
-    for (int i = 0; i < vec_len(func->params); i++)
+
+    if (func->is_varargs) {
+        printf("  mov QWORD PTR [rbp-8], %d\n", 8 * params_len);
+        printf("  mov [rbp-16], r9\n");
+        printf("  mov [rbp-24], r8\n");
+        printf("  mov [rbp-32], rcx\n");
+        printf("  mov [rbp-40], rdx\n");
+        printf("  mov [rbp-48], rsi\n");
+        printf("  mov [rbp-56], rdi\n");
+        printf("  sub rsp, 56\n");
+    }
+
+    for (int i = 0; i < params_len; i++)
         printf("  push %s\n", arg_regs64[i]);
+
     int local_vars_space = func->offset - 8 * vec_len(func->params);
+    local_vars_space -= func->is_varargs ? 56 : 0;
     printf("  sub rsp, %d\n", local_vars_space);
     stack_depth = func->offset;
     for (int i = 0; i < vec_len(func->block); i++) {
         printf("# %s statement %d\n", func->name, i);
-        gen_stmt(vec_at(func->block, i));
+        gen_stmt(vec_at(func->block, i), func);
     }
     printf("# return %s\n", func->name);
     printf("  mov rsp, rbp\n"
@@ -812,7 +859,7 @@ void gen_func(Func* func) {
            "  ret\n");
 }
 
-void gen_lval(Node *node) {
+void gen_lval(Node *node, Func *func) {
     if (node->kind == ND_VAR) {
         printf("# load local variable %s\n", node->name);
         printf("  mov rax, rbp\n");
@@ -823,22 +870,22 @@ void gen_lval(Node *node) {
         return;
     } else if (node->kind == ND_GVAR) {
         printf("# load global variable %s\n", node->name);
-        printf("  mov rax, OFFSET FLAT:%s\n", node->name);
+        printf("  mov rax, OFFSET %s\n", node->name);
         printf("  push rax\n");
         printf("# end load global variable %s\n", node->name);
         stack_depth += 8;
         return;
     } else if (node->kind == ND_DEREF) {
         printf("# dereferencing\n");
-        gen_expr(node->lhs);
+        gen_expr(node->lhs, func);
         printf("# end dereferencing\n");
         return;
     } else if (node->kind == ND_NUM) {
-        gen_expr(node);
+        gen_expr(node, func);
         return;
     } else if (node->kind == ND_ATTR) {
         printf("# prepare attribute access\n");
-        gen_lval(node->lhs);
+        gen_lval(node->lhs, func);
         printf("  pop rax\n"
                "  add rax, %d\n", node->val);
         printf("  push rax\n");

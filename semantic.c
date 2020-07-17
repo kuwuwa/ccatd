@@ -234,16 +234,18 @@ void sema_func(Func *func) {
 
     map_put(func_env, func->name, func);
 
+    int stack_offset = func->is_varargs ? 56 : 0;
+
     // block
     local_vars = env_new(NULL);
     break_labels = vec_new();
     continue_labels = vec_new();
     for (int i = 0; i < params_len; i++) {
         Node* param = vec_at(func->params, i);
-        param->val = 8 * (i + 1);
+        param->val = stack_offset + 8 * (i + 1);
         env_push(local_vars, param->name, param);
     }
-    max_scoped_stack_space = scoped_stack_space = 8 * params_len;
+    max_scoped_stack_space = scoped_stack_space = stack_offset + 8 * params_len;
 
     sema_block(func->block, func);
     func->offset = max_scoped_stack_space;
@@ -312,7 +314,6 @@ void sema_stmt(Node *node, Func *func) {
                     error_loc(node->loc, "[semantic] type mismatch in a variable declaration");
             }
         }
-
         scoped_stack_space += type_size(node->lhs->type);
         node->lhs->val = scoped_stack_space;
         env_push(local_vars, node->lhs->name, node->lhs);

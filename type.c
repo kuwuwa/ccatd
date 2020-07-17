@@ -81,8 +81,7 @@ Type *coerce_pointer(Type *t) {
     if (t->ty == TY_ARRAY)
         return ptr_of(t->ptr_to);
 
-    error("coerce_pointer; unsupported type");
-    return NULL;
+    return t;
 }
 
 Type *binary_int_op_result(Type *lt, Type *rt) {

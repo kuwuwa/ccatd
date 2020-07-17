@@ -78,6 +78,7 @@ static void toplevel() {
     if ((tk = consume_keyword("typedef"))) {
         Type *typ = type_spec();
         Node *decl = declarator(typ);
+        typ = decl->type;
         expect_keyword(";");
 
         Type *aliased = calloc(1, sizeof(Type));

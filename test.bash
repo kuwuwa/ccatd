@@ -1,7 +1,7 @@
 
 CC=gcc
 CFLAGS='-static -g'
-APP=ccatd
+# APP=ccatd
 
 try_return() {
   filename="$1"
@@ -53,5 +53,6 @@ try_return 'test/test1.c' 0
 try_return 'test/test2.c' 0
 try_return 'test/test3.c' 0
 try_return 'test/test4.c' 0
+try_stdout 'test/test5.c' 'abcXYZabc12345'
 
 echo "Accepted!!"
