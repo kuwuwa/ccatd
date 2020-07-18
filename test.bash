@@ -54,6 +54,8 @@ try_return 'test/test_misc2.c' 0
 try_return 'test/test_operators.c' 0
 try_return 'test/test_struct.c' 0
 try_stdout 'test/test_variadic.c' 'abcXYZabc12345'
-try_return 'test/test_vector.c' 0
+try_return 'test/test_list.c' 0
+try_return 'test/test_incr.c' 0
+try_stdout 'test/test_file.c' 'this is text'
 
-echo "Accepted!!"
+echo "OKOKOKOKOKOKOKOKOKOK"
