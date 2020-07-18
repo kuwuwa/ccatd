@@ -258,7 +258,7 @@ void gen_expr(Node *node, Func *func) {
         printf("  pop rax\n"
                "  mov rdi, [rsp]\n");
         printf("  mov [rdi], %s\n", ax);
-        printf("  mov [rsp], rax\n");
+        printf("  mov [rsp], %s\n", ax);
         stack_depth -= 8;
         return;
     }
@@ -348,7 +348,8 @@ void gen_expr(Node *node, Func *func) {
             else
                 printf("  mov rax, [rax]\n");
         }
-        printf("  mov [rsp], rax\n");
+        char *ax = ax_of_type(node->type);
+        printf("  mov [rsp], %s\n", ax);
         return;
     }
 
@@ -493,7 +494,7 @@ void gen_expr(Node *node, Func *func) {
         char *di = di_of_type(node->lhs->type);
         char *ax = ax_of_type(node->lhs->type);
         printf("  mov %s, [rax]\n", di);
-        printf("  mov [rsp], %s\n", di);
+        printf("  mov [rsp], rdi\n");
         printf("  add %s, %d\n", di, incr);
         printf("  mov [rax], %s\n", di);
         printf("  mov %s, [rsp]\n", ax);
@@ -523,8 +524,8 @@ void gen_expr(Node *node, Func *func) {
                     default:
                         error("[internal] unreachable");
                 }
-                printf("  mov [rdi], rax\n"
-                       "  mov [rsp], rax\n");
+                printf("  mov [rdi], %s\n", ax);
+                printf("  mov [rsp], %s\n", ax);
                 break;
             }
             default:
@@ -543,7 +544,8 @@ void gen_expr(Node *node, Func *func) {
                         if (is_pointer_compat(node->lhs->type) &&
                                 is_pointer_compat(node->rhs->type)) {
                             printf("  mov rdi, %d\n", type_size(node->lhs->type->ptr_to));
-                            printf("  div rdi\n");
+                            printf("  cqo\n"
+                                   "  div rdi\n");
                         }
                         break;
                     case ND_MULEQ:
@@ -570,9 +572,10 @@ void gen_expr(Node *node, Func *func) {
                     default:
                         error("[internal] unreachable\n");
                 }
+                char *ax = ax_of_type(node->type);
                 printf("  mov rdi, [rsp]\n"
-                       "  mov [rdi], rax\n"
-                       "  mov [rsp], rax\n");
+                       "  mov [rdi], %s\n", ax);
+                printf("  mov [rsp], %s\n", ax);
         }
         return;
     }
@@ -597,7 +600,8 @@ void gen_expr(Node *node, Func *func) {
             printf("  sub rax, rdi\n");
             if (is_pointer_compat(node->lhs->type) && is_pointer_compat(node->rhs->type)) {
                 printf("  mov rdi, %d\n", type_size(node->lhs->type->ptr_to));
-                printf("  div rdi\n");
+                printf("  cqo\n"
+                       "  div rdi\n");
             }
             break;
         case ND_MUL:

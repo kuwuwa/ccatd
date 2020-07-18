@@ -43,7 +43,6 @@ static void init() {
     env_push(builtin_aliases, "long", type_int); // 8 bit
     env_push(builtin_aliases, "size_t", type_int); // 8 bit
 
-
     // parse
 
     functions = vec_new();
@@ -84,8 +83,7 @@ static char *read_file(char *path) {
     fread(buf, size, 1, fp);
 
     if (size == 0 || buf[size - 1] != '\n') {
-        buf[size] = '\n';
-        size++;
+        buf[size++] = '\n';
     }
     buf[size] = '\0';
     fclose(fp);

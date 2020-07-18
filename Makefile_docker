@@ -1,3 +1,0 @@
-#!/bin/sh
-
-docker run --rm -it -w /tmp -v ${PWD}:/tmp gcc make $@
