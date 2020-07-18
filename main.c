@@ -1,13 +1,13 @@
 #include "ccatd.h"
 
-void append_type_param(Vec *params, Type* t) {
+static void append_type_param(Vec *params, Type* t) {
     Node *node = calloc(1, sizeof(Node));
     node->type = t;
     node->kind = ND_VAR;
     vec_push(params, node);
 }
 
-void push_function(char *name, Type **arg_types, int argc, Type *ret_type, bool is_varargs) {
+static void push_function(char *name, Type **arg_types, int argc, Type *ret_type, bool is_varargs) {
     Func *func = calloc(1, sizeof(Func));
     func->name = name;
     func->is_varargs = is_varargs;
@@ -19,14 +19,14 @@ void push_function(char *name, Type **arg_types, int argc, Type *ret_type, bool 
     map_put(func_env, name, func);
 }
 
-Type *mktype(Type_kind kind, Type *ptr_to) {
+static Type *mktype(Type_kind kind, Type *ptr_to) {
     Type *typ = calloc(1, sizeof(Type));
     typ->ty = kind;
     typ->ptr_to = ptr_to;
     return typ;
 }
 
-void init() {
+static void init() {
     // type
 
     type_void = mktype(TY_VOID, NULL);
@@ -68,7 +68,7 @@ void init() {
     push_function("__builtin_va_start", builtin_va_start_args, 1, type_void, true);
 }
 
-char *read_file(char *path) {
+static char *read_file(char *path) {
     FILE *fp = fopen(path, "r");
     if (!fp)
         error("cannot open %s: %d\n", path, strerror(errno));

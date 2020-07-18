@@ -47,13 +47,13 @@ try_stdout 'sample/call2.c' 'OK'
 try_stdout 'sample/char2.c' "Hello, World!"
 try_stdout 'sample/string2.c' '"hack"'
 try_stdout 'sample/string3.c' 'char'
-
 try_return 'sample/assignment2.c' 4
-try_return 'test/test1.c' 0
-try_return 'test/test2.c' 0
-try_return 'test/test3.c' 0
-try_return 'test/test4.c' 0
-try_stdout 'test/test5.c' 'abcXYZabc12345'
-try_return 'test/test6.c' 0
+
+try_return 'test/test_misc1.c' 0
+try_return 'test/test_misc2.c' 0
+try_return 'test/test_operators.c' 0
+try_return 'test/test_struct.c' 0
+try_stdout 'test/test_variadic.c' 'abcXYZabc12345'
+try_return 'test/test_vector.c' 0
 
 echo "Accepted!!"
