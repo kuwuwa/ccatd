@@ -620,7 +620,7 @@ void sema_expr(Node* node, Func *func) {
     if (node->type != NULL)
         return;
 
-    error_loc(node->loc, "unsupported feature");
+    error_loc(node->loc, "unsupported feature: %d", node->kind);
 }
 
 void sema_array(Type* ty, Node* arr, Func *func) {

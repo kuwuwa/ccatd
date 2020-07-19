@@ -6,6 +6,7 @@ CFLAGS='-static -g'
 try_return() {
   filename="$1"
   expected="$2"
+  echo "running ${1}..."
   ./${APP} "$filename" > _temp.s
   if [ "$?" != 0 ]; then
     echo "compilation failed: ${filename}"
@@ -28,6 +29,7 @@ try_return() {
 try_stdout() {
   filename="$1"
   expected="$2"
+  echo "running ${1}..."
   ./${APP} "${filename}" > _temp.s
   if [ "$?" != 0 ]; then
     echo "compilation failed: ${filename}"
@@ -58,4 +60,4 @@ try_return 'test/test_list.c' 0
 try_return 'test/test_incr.c' 0
 try_stdout 'test/test_file.c' 'this is text'
 
-echo "OKOKOKOKOKOKOKOKOKOK"
+echo "All tests passed"

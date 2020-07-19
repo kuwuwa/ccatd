@@ -183,6 +183,7 @@ int label_num = 0;
 int stack_depth = 0;
 
 void gen_expr(Node *node, Func *func) {
+    int eventual_stack_depth = stack_depth + 8;
     if (node->kind == ND_NUM) {
         // assuming `int'
         printf("  mov eax, %d\n", node->val);
@@ -191,7 +192,7 @@ void gen_expr(Node *node, Func *func) {
         return;
     }
     if (node->kind == ND_CHAR) {
-        printf("  mov ax, %d\n", (char) node->val);
+        printf("  mov al, %d\n", node->val);
         printf("  push %d\n", node->val);
         stack_depth += 8;
         return;
@@ -230,13 +231,12 @@ void gen_expr(Node *node, Func *func) {
             // pass; put an beginning address of given array
         } else {
             int size = type_size(node->type);
-            if (size == 1) {
+            if (size == 1)
                 printf("  movsx eax, BYTE PTR [rax]\n");
-            } else if (size == 4) {
+            else if (size == 4)
                 printf("  mov eax, [rax]\n");
-            } else { /* size == 8 */
+            else /* size == 8 */
                 printf("  mov rax, [rax]\n");
-            }
         }
         printf("  push rax\n");
         stack_depth += 8;
@@ -254,9 +254,10 @@ void gen_expr(Node *node, Func *func) {
     if (node->kind == ND_ASGN) {
         gen_lval(node->lhs, func);
         gen_expr(node->rhs, func);
-        char *ax = ax_of_type(node->type);
         printf("  pop rax\n"
                "  mov rdi, [rsp]\n");
+
+        char *ax = ax_of_type(node->type);
         printf("  mov [rdi], %s\n", ax);
         printf("  mov [rsp], %s\n", ax);
         stack_depth -= 8;
@@ -276,6 +277,12 @@ void gen_expr(Node *node, Func *func) {
             printf("  mov QWORD PTR [rax+16], 0\n"); // reg_save_area
             printf("  mov rax, 0\n"); // # of floating point parameters
             printf("  push rax\n");
+
+            if (eventual_stack_depth != stack_depth) {
+                debug("[internal] stack depth corrected: %s in __builtin_va_start",
+                        func->name);
+                stack_depth = eventual_stack_depth;
+            }
             return;
         }
 
@@ -322,20 +329,21 @@ void gen_expr(Node *node, Func *func) {
     if (node->kind == ND_DEREF) {
         gen_expr(node->lhs, func);
         int size = type_size(node->type);
+        char *ax = ax_of_type(node->type);
         if (size == 1)
             printf("  movsx eax, BYTE PTR [rax]\n");
         else if (size == 4)
             printf("  mov eax, [rax]\n");
         else
             printf("  mov rax, [rax]\n");
-        printf("  mov [rsp], rax\n");
+        printf("  mov [rsp], %s\n", ax);
         return;
     }
 
     if (node->kind == ND_ATTR) {
         printf("# prepare attribute access\n");
         gen_lval(node->lhs, func);
-        printf("# offset \n");
+        printf("# offset\n");
         printf("  add rax, %d\n", node->val);
         if (node->type->ty == TY_ARRAY) {
             // pass; put an beginning address of given array
@@ -368,17 +376,19 @@ void gen_expr(Node *node, Func *func) {
 
     if (node->kind == ND_NEG) {
         gen_expr(node->lhs, func);
-        printf("  cmp rax, 0\n"
-               "  sete al\n"
+        char *ax = ax_of_type(node->type);
+        printf("  cmp %s, 0\n", ax);
+        printf("  sete al\n"
                "  movzb eax, al\n"
-               "  mov [rsp], rax\n");
+               "  mov [rsp], %s\n", ax);
         return;
     }
 
     if (node->kind == ND_BCOMPL) {
         gen_expr(node->lhs, func);
-        printf("  not rax\n"
-               "  mov [rsp], rax\n");
+        char *ax = ax_of_type(node->type);
+        printf("  not %s\n", ax);
+        printf("  mov [rsp], %s\n", ax);
         return;
     }
 
@@ -411,9 +421,10 @@ void gen_expr(Node *node, Func *func) {
     if (node->kind == ND_COND) {
         int lb = label_num++;
         gen_expr(node->cond, func); // +8
+        char *ax = ax_of_type(node->cond->type);
         printf("  pop rax\n"
-               "  cmp rax, 0\n"
-               "  je .Lcond_else%d\n", lb);
+               "  cmp %s, 0\n", ax);
+        printf("  je .Lcond_else%d\n", lb);
         stack_depth -= 8;
         gen_expr(node->lhs, func); // +8
         stack_depth -= 8;
@@ -428,12 +439,15 @@ void gen_expr(Node *node, Func *func) {
         int lb = label_num++;
         printf("# logical AND operation\n");
         gen_expr(node->lhs, func);
-        printf("  cmp rax, 0\n"
-               "  je .Land_end%d\n", lb);
+        char *axl = ax_of_type(node->lhs->type);
+        printf("  cmp %s, 0\n", axl);
+        printf("  je .Land_end%d\n", lb);
         printf("  pop rax\n");
+        stack_depth -= 8;
+        char *axr = ax_of_type(node->rhs->type);
         gen_expr(node->rhs, func);
-        printf("  cmp rax, 0\n"
-               "  je .Land_end%d\n", lb);
+        printf("  cmp %s, 0\n", axr);
+        printf("  je .Land_end%d\n", lb);
         printf("  pop rax\n"
                "  push 1\n");
         printf(".Land_end%d:\n", lb);
@@ -444,11 +458,15 @@ void gen_expr(Node *node, Func *func) {
         int lb = label_num++;
         printf("# logical OR operation\n");
         gen_expr(node->lhs, func);
-        printf("  cmp rax, 0\n"
-               "  jne .Lor_true%d\n", lb);
+        char *axl = ax_of_type(node->lhs->type);
+        printf("  cmp %s, 0\n", axl);
+        printf("  jne .Lor_true%d\n", lb);
+        printf("  pop rax\n");
+        stack_depth -= 8;
         gen_expr(node->rhs, func);
-        printf("  cmp rax, 0\n"
-               "  je .Lor_end%d\n", lb);
+        char *axr = ax_of_type(node->rhs->type);
+        printf("  cmp %s, 0\n", axr);
+        printf("  je .Lor_end%d\n", lb);
         printf(".Lor_true%d:\n", lb);
         printf("  pop rax\n"
                "  push 1\n");
@@ -457,17 +475,17 @@ void gen_expr(Node *node, Func *func) {
     }
 
     if (node->kind == ND_LSH || node->kind == ND_RSH) {
+        char *ax = ax_of_type(node->lhs->type);
         printf("# prepare shift\n");
         gen_expr(node->lhs, func);
         printf("# right hand side\n");
         gen_expr(node->rhs, func);
-        printf("  pop rcx\n");
-        printf("  mov rax, [rsp]\n");
-        stack_depth -= 8;
+        printf("  pop rcx\n"); /* <- */ stack_depth -= 8;
+        printf("  mov %s, [rsp]\n", ax);
+
         char *mne = node->kind == ND_LSH ? "shl" : "shr";
-        char *ax = ax_of_type(node->lhs->type);
         printf("  %s %s, cl\n", mne, ax);
-        printf("  mov [rsp], rax\n");
+        printf("  mov [rsp], %s\n", ax);
         return;
     }
 
@@ -494,7 +512,7 @@ void gen_expr(Node *node, Func *func) {
         char *di = di_of_type(node->lhs->type);
         char *ax = ax_of_type(node->lhs->type);
         printf("  mov %s, [rax]\n", di);
-        printf("  mov [rsp], rdi\n");
+        printf("  mov [rsp], %s\n", di);
         printf("  add %s, %d\n", di, incr);
         printf("  mov [rax], %s\n", di);
         printf("  mov %s, [rsp]\n", ax);
@@ -507,13 +525,13 @@ void gen_expr(Node *node, Func *func) {
         printf("# prepare assignment operation; right hand side\n");
         gen_expr(node->rhs, func);
 
+        char *ax = ax_of_type(node->lhs->type);
         switch (node->kind) {
             case ND_LSHEQ: case ND_RSHEQ: {
                 printf("  pop rcx\n"
                        "  mov rdi, [rsp]\n"
-                       "  mov %s, [rdi]\n", ax_of_type(node->lhs->type));
+                       "  mov %s, [rdi]\n", ax);
                 stack_depth -= 8;
-                char *ax = ax_of_type(node->lhs->type);
                 switch (node->kind) {
                     case ND_LSHEQ:
                         printf("  shl %s, cl\n", ax);
@@ -529,10 +547,29 @@ void gen_expr(Node *node, Func *func) {
                 break;
             }
             default:
-                printf("  pop rdi\n"
-                       "  mov rax, [rsp]\n"
-                       "  mov %s, [rax]\n", ax_of_type(node->lhs->type));
+                // rhs
+                printf("  pop rax\n");
                 stack_depth -= 8;
+                if (type_size(coerce_pointer(node->rhs->type)) < type_size(node->type)) {
+                    if (type_size(node->type) == 4)
+                        printf("  cbw\n"
+                               "  cwde\n");
+                    else if (type_size(node->type) == 8)
+                        printf("  cdqe\n");
+                }
+                printf("  mov rdi, rax\n");
+                // lhs
+                printf("  mov rax, [rsp]\n"
+                       "  mov %s, [rax]\n", ax);
+                if (type_size(coerce_pointer(node->lhs->type)) < type_size(node->type)) {
+                    if (type_size(node->type) == 4)
+                        printf("  cbw\n"
+                               "  cwde\n");
+                    else if (type_size(node->type) == 8)
+                        printf("  cdqe\n");
+                }
+
+                char *di = di_of_type(node->rhs->type);
                 switch (node->kind) {
                     case ND_ADDEQ:
                         gen_coeff_ptr(node->lhs->type, node->rhs->type);
@@ -545,37 +582,37 @@ void gen_expr(Node *node, Func *func) {
                                 is_pointer_compat(node->rhs->type)) {
                             printf("  mov rdi, %d\n", type_size(node->lhs->type->ptr_to));
                             printf("  cqo\n"
-                                   "  div rdi\n");
+                                   "  div %s\n", di);
                         }
                         break;
                     case ND_MULEQ:
-                        printf("  imul rax, rdi\n");
+                        printf("  imul %s, %s\n", ax, di);
                         break;
                     case ND_DIVEQ:
                         printf("  cqo\n"
-                               "  idiv rdi\n");
+                               "  idiv %s\n", di);
                         break;
                     case ND_MODEQ:
                         printf("  cqo\n"
-                               "  idiv rdi\n"
-                               "  mov rax, rdx\n");
+                               "  idiv %s\n", di);
+                        printf("  mov rax, rdx\n");
                         break;
                     case ND_IOREQ:
-                        printf("  or rax, rdi\n");
+                        printf("  or %s, %s\n", ax, di);
                         break;
                     case ND_XOREQ:
-                        printf("  xor rax, rdi\n");
+                        printf("  xor %s, %s\n", ax, di);
                         break;
                     case ND_ANDEQ:
-                        printf("  and rax, rdi\n");
+                        printf("  and %s, %s\n", ax, di);
                         break;
                     default:
                         error("[internal] unreachable\n");
                 }
-                char *ax = ax_of_type(node->type);
+                char *rax = ax_of_type(node->type);
                 printf("  mov rdi, [rsp]\n"
-                       "  mov [rdi], %s\n", ax);
-                printf("  mov [rsp], %s\n", ax);
+                       "  mov [rdi], %s\n", rax);
+                printf("  mov [rsp], %s\n", rax);
         }
         return;
     }
@@ -586,47 +623,70 @@ void gen_expr(Node *node, Func *func) {
     gen_expr(node->rhs, func);
 
     printf("# arithmetic operation\n");
-    printf("  pop rdi\n");
+    // rhs
+    printf("  pop rax\n");
+    if (type_size(coerce_pointer(node->rhs->type)) < type_size(node->type)) {
+        if (type_size(node->type) == 4)
+            printf("  cbw\n"
+                   "  cwde\n");
+        else if (type_size(node->type) == 8)
+            printf("  cdqe\n");
+    }
+    printf("  mov rdi, rax\n");
+
+    // lhs
     printf("  mov rax, [rsp]\n");
+    if (type_size(coerce_pointer(node->lhs->type)) < type_size(node->type)) {
+        if (type_size(node->type) == 4)
+            printf("  cbw\n"
+                   "  cwde\n");
+        else if (type_size(node->type) == 8)
+            printf("  cdqe\n");
+    }
     stack_depth -= 8;
 
+    char *ax = ax_of_type(node->type);
+    char *di = di_of_type(node->type);
     switch (node->kind) {
         case ND_ADD:
             gen_coeff_ptr(node->lhs->type, node->rhs->type);
-            printf("  add rax, rdi\n");
+            printf("  add %s, %s\n", ax, di);
             break;
         case ND_SUB:
             gen_coeff_ptr(node->lhs->type, node->rhs->type);
-            printf("  sub rax, rdi\n");
+            printf("  sub %s, %s\n", ax, di);
             if (is_pointer_compat(node->lhs->type) && is_pointer_compat(node->rhs->type)) {
                 printf("  mov rdi, %d\n", type_size(node->lhs->type->ptr_to));
                 printf("  cqo\n"
-                       "  div rdi\n");
+                       "  div %s\n", di);
             }
             break;
         case ND_MUL:
-            printf("  imul rax, rdi\n");
+            printf("  imul %s, %s\n", ax, di);
             break;
         case ND_DIV:
             printf("  cqo\n"
-                   "  idiv rdi\n");
+                   "  idiv %s\n", di);
             break;
-        case ND_MOD:
-            printf("  cqo\n"
-                   "  idiv rdi\n"
-                   "  mov rax, rdx\n");
+        case ND_MOD: {
+            char *mne = type_size(node->type) == 4 ? "cdq"
+                     : "cqo";
+            printf("  %s\n", mne);
+            printf("  idiv %s\n", di);
+            printf("  mov rax, rdx\n");
             break;
+        }
         case ND_IOR:
-            printf("  or rax, rdi\n");
+            printf("  or %s, %s\n", ax, di);
             break;
         case ND_XOR:
-            printf("  xor rax, rdi\n");
+            printf("  xor %s, %s\n", ax, di);
             break;
         case ND_AND:
-            printf("  and rax, rdi\n");
+            printf("  and %s, %s\n", ax, di);
             break;
-        default:
-            printf("  cmp rax, rdi\n");
+        default: {
+            printf("  cmp %s, %s\n", ax, di);
             switch (node->kind) {
                 case ND_EQ:
                     printf("  sete al\n");
@@ -644,8 +704,9 @@ void gen_expr(Node *node, Func *func) {
                     error("should be unreachable");
             }
             printf("  movzb rax, al\n");
+        }
     }
-    printf("  mov [rsp], rax\n");
+    printf("  mov [rsp], %s\n", ax);
     printf("# end arithmetic operation\n");
 }
 
@@ -661,14 +722,14 @@ void gen_stmt(Node *node, Func *func) {
             for (int i = 0; i < len; i++) {
                 printf("# local array initialization %d", i);
                 gen_lval(node->lhs, func);
+                char *ax = ax_of_type(elem_type);
                 printf("  add rax, %d\n", i * type_size(elem_type));
-                printf("  mov [rsp], rax\n");
+                printf("  mov [rsp], %s\n", ax);
 
                 printf("# local array initialization %d; right hand side\n", i);
                 Node *e = vec_at(node->rhs->block, i);
                 gen_expr(e, func);
                 printf("# local array initialization %d; assignment\n", i);
-                char *ax = ax_of_type(elem_type);
                 printf("  pop rax\n"
                        "  pop rdi\n"
                        "  mov [rdi], %s\n", ax);
@@ -706,8 +767,9 @@ void gen_stmt(Node *node, Func *func) {
         int lb = label_num++;
         printf("# if statement\n");
         gen_expr(node->cond, func);
+        char *ax = ax_of_type(node->cond->type);
         printf("  pop rax\n"
-               "  cmp rax, 0\n");
+               "  cmp %s, 0\n", ax);
         stack_depth -= 8;
         if (node->rhs == NULL) {
             printf("  je .Lend_if%d\n", lb);
@@ -728,9 +790,10 @@ void gen_stmt(Node *node, Func *func) {
         char *label_base = node->name;
         printf(".L%s_cont:\n", label_base);
         gen_expr(node->cond, func);
+        char *ax = ax_of_type(node->cond->type);
         printf("# while jump\n");
         printf("  pop rax\n"
-               "  cmp rax, 0\n");
+               "  cmp %s, 0\n", ax);
         printf("  je .L%s_end\n", label_base);
         printf("# while body\n");
         stack_depth -= 8;
@@ -746,8 +809,9 @@ void gen_stmt(Node *node, Func *func) {
         printf(".L%s:\n", node->name);
         if (node->cond != NULL) {
             gen_expr(node->cond, func);
+            char *ax = ax_of_type(node->cond->type);
             printf("  pop rax\n"
-                   "  cmp rax, 0\n");
+                   "  cmp %s, 0\n", ax);
             printf("  je .L%s_end\n", node->name);
             stack_depth -= 8;
         }
@@ -767,8 +831,9 @@ void gen_stmt(Node *node, Func *func) {
         printf(".L%s_cont:\n", node->name);
         gen_expr(node->cond, func);
         printf("# do-while repeat check\n");
+        char *ax = ax_of_type(node->cond->type);
         printf("  pop rax\n"
-               "  cmp rax, 0\n");
+               "  cmp %s, 0\n", ax);
         printf("  jne .L%s\n", node->name);
         printf(".L%s_end:\n", node->name);
 
@@ -796,7 +861,7 @@ void gen_stmt(Node *node, Func *func) {
 
     if (node->kind == ND_SWITCH) {
         gen_expr(node->cond, func);
-        printf("  pop rax\n");
+        printf("  pop rax\n"); /* <- */ stack_depth -= 8;
         int len = vec_len(node->block);
         for (int i = 0; i < len; i++) {
             Node *stmt = vec_at(node->block, i);
@@ -909,13 +974,15 @@ void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
     if (is_pointer_compat(lt) && is_pointer_compat(rt)) {
     } else if (lt->ty == TY_INT && rt->ty == TY_INT) {
     } else if (lt->ty == TY_INT) {
+        char *ax = ax_of_type(lt);
         int coeff = type_size(rt->ptr_to);
         if (coeff != 1)
-            printf("  imul rax, %d\n", coeff);
+            printf("  imul %s, %d\n", ax, coeff);
     } else if (rt->ty == TY_INT) {
+        char *di = di_of_type(rt);
         int coeff = type_size(lt->ptr_to);
         if (coeff != 1)
-            printf("  imul rdi, %d\n", coeff);
+            printf("  imul %s, %d\n", di, coeff);
     } else {
         error("addition/subtraction of two pointers is not allowed");
     }

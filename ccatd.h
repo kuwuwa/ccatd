@@ -105,7 +105,7 @@ void tokenize(char *p);
 
 typedef enum {
     // expressions
-    ND_NUM,
+    ND_NUM, // 0
     ND_VAR,
     ND_SEQ,
     ND_ASGN,
@@ -115,7 +115,7 @@ typedef enum {
     ND_MUL,
     ND_DIV,
     ND_MOD,
-    ND_LSH,
+    ND_LSH, // 10
     ND_RSH,
     ND_AND,
     ND_IOR,
@@ -125,7 +125,7 @@ typedef enum {
     ND_LT,
     ND_LTE,
     ND_LAND,
-    ND_LOR,
+    ND_LOR, // 20
     ND_ADDEQ,
     ND_SUBEQ,
     ND_MULEQ,
@@ -135,12 +135,12 @@ typedef enum {
     ND_RSHEQ,
     ND_ANDEQ,
     ND_IOREQ,
-    ND_XOREQ,
+    ND_XOREQ, // 30
     ND_PREINCR,
     ND_POSTINCR,
     ND_PREDECR,
     ND_POSTDECR,
-    ND_CALL,
+    ND_CALL, // 35
     ND_ADDR,
     ND_DEREF,
     ND_SIZEOF,

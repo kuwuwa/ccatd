@@ -190,6 +190,6 @@ void tokenize(char *p) {
             continue;
         }
 
-        error_loc2(loc_line, loc_column, "an unknown character was found");
+        error_loc2(loc_line, loc_column, "an unknown character was found: %d", *p);
     }
 }

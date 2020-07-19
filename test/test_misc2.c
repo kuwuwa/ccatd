@@ -1,4 +1,3 @@
-
 void fail() {
     assert_equals(0, 1);
 }
@@ -44,6 +43,14 @@ int main() {
     do { break; x = 2; } while (0);
     assert_equals(x, 1);
 
+    for (;0 >= 2;)
+        fail();
+    for (;(-1) >= 0;)
+        fail();
+
+    for (int i = -1; i >= 0; i--)
+        fail();
+
     for (;;) {
         break;
         fail();
@@ -55,7 +62,7 @@ int main() {
             continue;
         r = r | (1 << i);
     }
-    assert_equals(r, 512+128+32+8+2);
+    assert_equals(r, 682 /* 512+128+32+8+2 */);
 
     {
         int i = 0;
@@ -180,4 +187,3 @@ int fun1() {
     pf(1, 2, 3, 4, 5, 6);
     return 0;
 }
-

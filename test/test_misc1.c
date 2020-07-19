@@ -1,3 +1,7 @@
+void fail() {
+    assert_equals(0, 1);
+}
+
 int test_return1() {
     int a = 2;
     int b = a + 4;

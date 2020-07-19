@@ -8,7 +8,7 @@ OBJS := $(SRCS:.c=.o)
 
 build: $(OBJS)
 	$(CC) -o ccatd $(OBJS) $(LDFLAGS)
-	ctags -R
+	ctags *.c
 
 test: build
 	APP=ccatd bash ./test.bash

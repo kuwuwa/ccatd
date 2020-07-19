@@ -271,6 +271,7 @@ static Type *parse_enum(Location *start) {
             id->type = typ;
             id->name = tk->str;
             id->is_enum = true;
+            id->val = i;
             map_put(variable_env->map, id->name, id);
         }
     }

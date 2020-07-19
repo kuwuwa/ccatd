@@ -1,6 +1,7 @@
 #include "ccatd.h"
 
-Type *type_int; Type *type_char;
+Type *type_int;
+Type *type_char;
 Type *type_ptr_char;
 Type *type_void;
 
