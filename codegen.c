@@ -52,16 +52,14 @@ void gen_globals() {
 }
 
 void gen_const(Type *typ, Node *node) {
-    if (node->kind == ND_NUM && node->type == type_int) {
+    switch (node->kind) {
+    case ND_NUM:
         printf("  .long %d\n", node->val);
         return;
-    }
-    if (node->kind == ND_ADDR) {
-        Node *var = node->lhs;
-        printf("  .quad %s\n", var->name);
+    case ND_ADDR:
+        printf("  .quad %s\n", node->lhs->name);
         return;
-    }
-    if (node->kind == ND_GVAR) {
+    case ND_GVAR:
         if (is_enum(node->type)) {
             int len = vec_len(node->type->enums);
             for (int i = 0; i < len; i++) {
@@ -77,8 +75,7 @@ void gen_const(Type *typ, Node *node) {
         printf("  .quad %s\n", node->name);
         printf("\n");
         return;
-    }
-    if (node->kind == ND_STRING) {
+    case ND_STRING:
         if (typ->ty == TY_PTR) {
             int len = vec_len(string_literals);
             for (int i = 0; i < len; i++) {
@@ -96,8 +93,7 @@ void gen_const(Type *typ, Node *node) {
         } else
             error_loc(node->loc, "[interval] unexpected string occurred");
         return;
-    }
-    if (node->kind == ND_ARRAY) {
+    case ND_ARRAY: {
         int arr_len = vec_len(node->block);
         for (int i = 0; i < arr_len; i++)
             gen_const(typ->ptr_to, vec_at(node->block, i));
@@ -108,22 +104,21 @@ void gen_const(Type *typ, Node *node) {
 
         return;
     }
-    if (node->kind == ND_ADD) {
+    case ND_ADD: {
         Node *var = node->kind == ND_ADDR ? node->lhs->lhs : node->lhs;
         Node *offset = node->rhs;
-
         printf("  .quad %s + %d\n", var->name, offset->val * type_size(offset->type));
         return;
     }
-    if (node->kind == ND_SUB) {
+    case ND_SUB: {
         Node *var = node->lhs->lhs;
         Node *offset = node->rhs;
-
         printf("  .quad %s - %d\n", var->name, offset->val * type_size(offset->type));
         return;
     }
-
-    error_loc(node->loc, "[codegen] unsupported expression in a global variable declaration");
+    default:
+        error_loc(node->loc, "[codegen] unsupported expression in a global variable declaration");
+    }
 }
 
 Node *gen_const_calc(Node *node) {
@@ -342,7 +337,7 @@ void gen_expr(Node *node, Func *func) {
         printf("  cmp %s, 0\n", ax);
         printf("  sete al\n"
                "  movzb eax, al\n"
-               "  mov [rsp], %s\n", ax);
+               "  mov [rsp], rax\n");
         return;
     }
 
