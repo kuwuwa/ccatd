@@ -39,9 +39,9 @@ static void init() {
     env_push(builtin_aliases, "int", type_int);
     env_push(builtin_aliases, "char", type_char);
 
-    env_push(builtin_aliases, "bool", type_char); // 1 bit
-    env_push(builtin_aliases, "long", type_int); // 8 bit
-    env_push(builtin_aliases, "size_t", type_int); // 8 bit
+    env_push(builtin_aliases, "bool", type_char); // TODO: 1 bit
+    env_push(builtin_aliases, "long", type_int); // TODO: should be 8 bytes
+    env_push(builtin_aliases, "size_t", type_int); // TODO: should be 8 bytes & unsigned
 
     // parse
 

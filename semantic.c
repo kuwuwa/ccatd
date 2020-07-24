@@ -75,18 +75,16 @@ void sema_const(Node *global) {
 }
 
 void sema_const_aux(Node *node) {
-    if (node->kind == ND_NUM) {
+    switch (node->kind) {
+    case ND_NUM:
         if (!eq_type(type_int, node->type))
             error("[semantic] type mismatch in a global variable definition");
         return;
-    }
-    if (node->kind == ND_STRING) {
+    case ND_STRING:
         if (!eq_type(type_ptr_char, node->type))
             error("[semantic] type mismatch in a global variable definition");
         return;
-    }
-
-    if (node->kind == ND_ADDR) {
+    case ND_ADDR: {
         Node *e = node->lhs;
         if (e->kind != ND_VAR)
             error_loc(e->loc, "[semantic] a left value expected");
@@ -95,8 +93,7 @@ void sema_const_aux(Node *node) {
         node->type = ptr_of(e->type);
         return;
     }
-
-    if (node->kind == ND_VAR) {
+    case ND_VAR: {
         Node *resolved = map_find(global_env, node->name);
         if (resolved == NULL)
             error_loc(node->loc, "[semantic] undefined variable");
@@ -105,8 +102,7 @@ void sema_const_aux(Node *node) {
         node->val = resolved->val;
         return;
     }
-
-    if (node->kind == ND_ADD) {
+    case ND_ADD: {
         sema_const_aux(node->lhs);
         sema_const_aux(node->rhs);
         Type *lty = node->lhs->type;
@@ -121,8 +117,7 @@ void sema_const_aux(Node *node) {
             error_loc(node->loc, "[semantic] unsupported addition in a global variable initialization");
         return;
     }
-
-    if (node->kind == ND_SUB) {
+    case ND_SUB: {
         sema_const_aux(node->lhs);
         sema_const_aux(node->rhs);
         Type *lty = node->lhs->type;
@@ -138,8 +133,9 @@ void sema_const_aux(Node *node) {
             error_loc(node->loc, "[semantic] unsupported addition in a global variable initialization");
         return;
     }
-
-    error_loc(node->loc, "[semantic] unsupported expression in a global variable initialization");
+    default:
+        error_loc(node->loc, "[semantic] unsupported expression in a global variable initialization");
+    }
 }
 
 void sema_const_array(Type *type, Node *node) {
@@ -445,7 +441,11 @@ Type *sema_expr_arith(Node *node, Func *func) {
         error_loc(loc, "[semantic] unsupported modulo");
     case ND_EQ: case ND_NEQ:
     case ND_LT: case ND_LTE:
-    case ND_LAND: case ND_LOR: // TODO: Probably some check is needed
+    case ND_LAND: case ND_LOR:
+        if (!is_integer(lty) && !is_pointer(lty))
+            error_loc(loc, "[semantic] cannot be deduced to an integer");
+        if (!is_integer(rty) && !is_pointer(rty))
+            error_loc(loc, "[semantic] cannot be deduced to an integer");
         return type_int;
     case ND_IOR: case ND_XOR: case ND_AND:
         if ((ret = binary_int_op_result(lty, rty)) != NULL)
@@ -650,7 +650,7 @@ void sema_lval(Node *node, Func *func) {
 
 // Helpers
 
-// TODO: Needs to be improved
+// TODO: ???
 bool assignable(Type *lhs, Type *rhs) {
     if (lhs == type_void || rhs == type_void)
         return false;
