@@ -236,8 +236,9 @@ void gen_expr(Node *node, Func *func) {
         stack_depth += 8;
         gen_expr(node->rhs, func);
         stack_depth -= 8;
-        printf("  pop rax\n"
-               "  mov rdi, [rsp]\n");
+        printf("  pop rax\n");
+        gen_extend_rax(type_size(node->lhs->type), type_size(node->rhs->type));
+        printf("  mov rdi, [rsp]\n");
 
         char *ax = ax_of_type(node->type);
         printf("  mov [rdi], %s\n", ax);
