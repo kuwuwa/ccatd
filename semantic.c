@@ -276,6 +276,7 @@ void sema_switch(Node *node, Func *func) {
 
     vec_push(break_labels, label);
     sema_expr(node->cond, func);
+    local_vars = env_new(local_vars);
     for (int i = 0; i < len; i++) {
         Node *stmt = vec_at(node->block, i);
         if (stmt->kind == ND_CASE) {
@@ -287,6 +288,7 @@ void sema_switch(Node *node, Func *func) {
         } else
             sema_stmt(stmt, func);
     }
+    local_vars = env_next(local_vars);
     vec_pop(break_labels);
 }
 
