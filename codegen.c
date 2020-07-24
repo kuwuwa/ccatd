@@ -114,15 +114,21 @@ void gen_const(Type *typ, Node *node) {
         return;
     }
     case ND_ADD: {
-        Node *var = node->kind == ND_ADDR ? node->lhs->lhs : node->lhs;
+        Node *var = (node->lhs->type->ty == TY_ARRAY) ? node->lhs
+                  : (node->lhs->kind == ND_ADDR) ? node->lhs->lhs
+                  : (error_loc(node->loc, "[codegen] not constant"), NULL);
+        int size = type_size(node->lhs->type->ptr_to);
         Node *offset = node->rhs;
-        printf("  .quad %s + %d\n", var->name, offset->val * type_size(offset->type));
+        printf("  .quad %s + %d\n", var->name, offset->val * size);
         return;
     }
     case ND_SUB: {
-        Node *var = node->lhs->lhs;
+        Node *var = (node->lhs->type->ty == TY_ARRAY) ? node->lhs
+                  : (node->lhs->kind == ND_ADDR) ? node->lhs->lhs
+                  : (error_loc(node->loc, "[codegen] not constant"), NULL);
+        int size = type_size(node->lhs->type->ptr_to);
         Node *offset = node->rhs;
-        printf("  .quad %s - %d\n", var->name, offset->val * type_size(offset->type));
+        printf("  .quad %s - %d\n", var->name, offset->val * size);
         return;
     }
     default:

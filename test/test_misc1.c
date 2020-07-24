@@ -46,6 +46,7 @@ int inc(int* x) {
 
 int global1;
 int global2;
+int* global2a = &global2 - 1;
 int global3[10];
 
 int main() {
@@ -168,10 +169,9 @@ int main() {
         int *p = a;
         assert_equals(*p + *(p + 1), 3);
     }
-    // global1
     global1 = 9;
     assert_equals(global1, 9);
-    // global2
+    assert_equals(*global2a, 9);
     global2 = 2;
     global3[8] = 10;
     assert_equals(global2 * global3[8], 20);
