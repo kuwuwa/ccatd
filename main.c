@@ -108,8 +108,7 @@ int main(int argc, char **argv) {
         sema_func(func);
     }
 
-    printf("  .intel_syntax noprefix\n"
-           "  .globl main\n");
+    printf("  .intel_syntax noprefix\n");
 
     gen_globals();
 
@@ -120,9 +119,8 @@ int main(int argc, char **argv) {
             printf("  .globl %s\n", func->name);
     }
 
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < len; i++)
         gen_func(vec_at(functions, i));
-    }
     return 0;
 }
 

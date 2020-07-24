@@ -9,10 +9,20 @@ void gen_func(Func* f);
 static void gen_stmt(Node* n, Func *f);
 static void gen_lval(Node* n, Func *f);
 static void gen_coeff_ptr(Type* t1, Type* t2);
-static void gen_extend_rax(int dst, int src);
-static void gen_load_rax(int size);
-static char *ax_of_type(Type* t);
-static char *di_of_type(Type* t);
+static void extend_rax(int dst, int src);
+static void load_rax(int size);
+static char *rax_of_type(Type* t);
+static char *rdi_of_type(Type* t);
+
+static int resolve_enum_value(Vec *enums, char *name) {
+    int len = vec_len(enums);
+    for (int i = 0; i < len; i++) {
+        if (!strcmp(name, ((Token*) vec_at(enums, i))->str))
+            return i;
+    }
+    error("[internal] enum");
+    return -1;
+}
 
 // generate global variables
 
@@ -43,7 +53,6 @@ void gen_globals() {
         }
     }
     printf("  .text\n");
-    // TODO: Don't need to generate literals used in a char array
     for (int i = 0; i < vec_len(string_literals); i++) {
         char *str = vec_at(string_literals, i);
         printf(".LC%d:\n", i);
@@ -65,7 +74,7 @@ void gen_const(Type *typ, Node *node) {
             for (int i = 0; i < len; i++) {
                 Token *e = vec_at(node->type->enums, i);
                 if (!strcmp(node->name, e->str)) {
-                    printf("  .long %d # enum\n", i);
+                    printf("  .long %d\n", i);
                     return;
                 }
             }
@@ -121,47 +130,39 @@ void gen_const(Type *typ, Node *node) {
     }
 }
 
+int add_or_sub(Node_kind kind, int a, int b) {
+    if (kind == ND_ADD)
+        return a + b;
+    return a - b;
+}
+
 Node *gen_const_calc(Node *node) {
     switch (node->kind) {
     case ND_NUM: case ND_ADDR: case ND_GVAR: case ND_STRING: case ND_ARRAY:
         break;
-    case ND_ADD:
+    case ND_ADD: case ND_SUB:
         gen_const_calc(node->lhs);
         gen_const_calc(node->rhs);
         if (is_integer(node->lhs->type) && is_integer(node->rhs->type)) {
             node->type = binary_int_op_result(node->lhs->type, node->rhs->type);
-            node->val = node->lhs->val + node->rhs->val;
+            node->val = add_or_sub(node->kind, node->lhs->val, node->rhs->val);
         } else {
-            if (is_pointer_compat(node->rhs->type)) {
+            if (node->kind == ND_ADD && is_pointer_compat(node->rhs->type)) {
                 Node *tmp = node->rhs;
                 node->rhs = node->lhs;
                 node->lhs = tmp;
             }
 
             if (node->lhs->kind == ND_ADD) {
-                Node *new_rhs = mknum(node->lhs->rhs->val + node->rhs->val, node->loc);
+                Node *new_rhs = mknum(
+                        add_or_sub(node->kind, node->lhs->rhs->val, node->rhs->val),
+                        node->loc);
                 node->lhs = node->lhs->lhs;
                 node->rhs = new_rhs;
             } else if (node->lhs->kind == ND_SUB) {
-                Node *new_rhs = mknum(-node->lhs->rhs->val + node->rhs->val, node->loc);
-                node->lhs = node->lhs->lhs;
-                node->rhs = new_rhs;
-            }
-        }
-        break;
-    case ND_SUB:
-        gen_const_calc(node->lhs);
-        gen_const_calc(node->rhs);
-        if (is_integer(node->lhs->type) && is_integer(node->rhs->type)) {
-            node->type = binary_int_op_result(node->lhs->type, node->rhs->type);
-            node->val = node->lhs->val - node->rhs->val;
-        } else {
-            if (node->lhs->kind == ND_ADD) {
-                Node *new_rhs = mknum(node->lhs->rhs->val - node->rhs->val, node->loc);
-                node->lhs = node->lhs->lhs;
-                node->rhs = new_rhs;
-            } else if (node->lhs->kind == ND_SUB) {
-                Node *new_rhs = mknum(-node->lhs->rhs->val - node->rhs->val, node->loc);
+                Node *new_rhs = mknum(
+                        add_or_sub(node->kind, -node->lhs->rhs->val, node->rhs->val),
+                        node->loc);
                 node->lhs = node->lhs->lhs;
                 node->rhs = new_rhs;
             }
@@ -175,22 +176,33 @@ Node *gen_const_calc(Node *node) {
 
 // generate function
 
+bool is_assign_expr(Node_kind kind) {
+    switch (kind) {
+        case ND_ADDEQ: case ND_SUBEQ: case ND_MULEQ:
+        case ND_DIVEQ: case ND_MODEQ: case ND_ANDEQ:
+        case ND_IOREQ: case ND_XOREQ: case ND_LSHEQ:
+        case ND_RSHEQ:
+            return true;
+        default:
+            return false;
+    }
+}
+
 int label_num = 0;
 int stack_depth = 0;
 
 void gen_expr(Node *node, Func *func) {
-    if (node->kind == ND_NUM) {
+    switch (node->kind) {
+    case ND_NUM:
         // assuming `int'
         printf("  mov eax, %d\n", node->val);
         printf("  push %d\n", node->val);
         return;
-    }
-    if (node->kind == ND_CHAR) {
+    case ND_CHAR:
         printf("  mov al, %d\n", node->val);
         printf("  push %d\n", node->val);
         return;
-    }
-    if (node->kind == ND_STRING) {
+    case ND_STRING:
         for (int i = 0; i < vec_len(string_literals); i++) {
             char *str = vec_at(string_literals, i);
             if (!strcmp(node->name, str)) {
@@ -199,54 +211,57 @@ void gen_expr(Node *node, Func *func) {
                 return;
             }
         }
-    }
-
-    if (node->kind == ND_VAR) {
+        error_loc(node->loc, "[internal] string not found\n");
+    case ND_VAR:
         if (node->is_enum) {
-            int len = vec_len(node->type->enums);
-            for (int i = 0; i < len; i++) {
-                Token *e = vec_at(node->type->enums, i);
-                if (!strcmp(node->name, e->str)) {
-                    printf("  mov rax, %d\n", i);
-                    printf("  push %d\n", i);
-                    return;
-                }
-            }
-            error_loc(node->loc, "[internal] enum");
+            int idx = resolve_enum_value(node->type->enums, node->name);
+            printf("  mov rax, %d\n", idx);
+            printf("  push %d\n", idx);
+            return;
         }
 
         printf("  mov rax, rbp\n");
         printf("  sub rax, %d\n", node->val);
 
         if (node->type->ty != TY_ARRAY)
-            gen_load_rax(type_size(node->type));
+            load_rax(type_size(node->type));
         printf("  push rax\n");
         return;
-    }
+    case ND_GVAR:
+        if (node->type->ty == TY_ARRAY)
+            printf("  mov rax, OFFSET %s\n", node->name);
+        else if (is_enum(node->type)) {
+            int idx = resolve_enum_value(node->type->enums, node->name);
+            printf("  mov rax, %d\n", idx);
+            printf("  push %d\n", idx);
+            return;
+        } else {
+            char *rax = rax_of_type(node->type);
+            printf("  mov rax, OFFSET %s\n", node->name);
+            printf("  mov %s, [rax]\n", rax);
+        }
 
-    if (node->kind == ND_SEQ) {
+        printf("  push rax\n");
+        return;
+    case ND_SEQ:
         gen_expr(node->lhs, func);
         printf("  pop rax\n");
         gen_expr(node->rhs, func);
         return;
-    }
-
-    if (node->kind == ND_ASGN) {
+    case ND_ASGN:
         gen_lval(node->lhs, func);
         stack_depth += 8;
         gen_expr(node->rhs, func);
         stack_depth -= 8;
         printf("  pop rax\n");
-        gen_extend_rax(type_size(node->lhs->type), type_size(node->rhs->type));
+        extend_rax(type_size(node->lhs->type), type_size(node->rhs->type));
         printf("  mov rdi, [rsp]\n");
 
-        char *ax = ax_of_type(node->type);
-        printf("  mov [rdi], %s\n", ax);
-        printf("  mov [rsp], %s\n", ax);
+        char *rax = rax_of_type(node->type);
+        printf("  mov [rdi], %s\n", rax);
+        printf("  mov [rsp], %s\n", rax);
         return;
-    }
-
-    if (node->kind == ND_CALL) {
+    case ND_CALL: {
         if (!strcmp("__builtin_va_start", node->name)) {
             // assuming this call is in va_start called by a variadic function
             printf("  mov rax, [rbp-56]\n"); // ap
@@ -259,7 +274,6 @@ void gen_expr(Node *node, Func *func) {
             printf("  mov QWORD PTR [rax+16], 0\n"); // reg_save_area
             printf("  mov rax, 0\n"); // # of floating point parameters
             printf("  push rax\n");
-
             return;
         }
 
@@ -275,9 +289,9 @@ void gen_expr(Node *node, Func *func) {
             Node *p = vec_at(called->params, i);
             int size_param = type_size(p->type);
             if (size_arg < size_param && type_size(coerce_pointer(e->type)) == 1) {
-                char *ax = ax_of_type(p->type);
+                char *rax = rax_of_type(p->type);
                 printf("  movzb eax, al\n");
-                printf("  mov [rsp], %s\n", ax);
+                printf("  mov [rsp], %s\n", rax);
             }
         }
 
@@ -294,93 +308,47 @@ void gen_expr(Node *node, Func *func) {
         printf("  push rax\n");
         return;
     }
-
-    if (node->kind == ND_ADDR) {
+    case ND_ADDR:
         gen_lval(node->lhs, func);
         return;
-    }
-
-    if (node->kind == ND_DEREF) {
+    case ND_DEREF:
         gen_expr(node->lhs, func);
-        gen_load_rax(type_size(node->type));
-        char *ax = ax_of_type(node->type);
-        printf("  mov [rsp], %s\n", ax);
+        load_rax(type_size(node->type));
+        printf("  mov [rsp], %s\n", rax_of_type(node->type));
         return;
-    }
-
-    if (node->kind == ND_ATTR) {
-        printf("# prepare attribute access\n");
+    case ND_ATTR:
         gen_lval(node->lhs, func);
-        printf("# offset\n");
         printf("  add rax, %d\n", node->val);
         if (node->type->ty != TY_ARRAY)
-            gen_load_rax(type_size(node->type));
-        char *ax = ax_of_type(node->type);
-        printf("  mov [rsp], %s\n", ax);
+            load_rax(type_size(node->type));
+        printf("  mov [rsp], %s\n", rax_of_type(node->type));
         return;
-    }
-
-    if (node->kind == ND_CAST) {
+    case ND_CAST:
         gen_expr(node->lhs, func);
         node->lhs->type = node->type;
         return;
-    }
-
-    if (node->kind == ND_SIZEOF) {
+    case ND_SIZEOF:
         printf("  mov rax, %d\n"
                "  push %d\n", node->val, node->val);
         return;
-    }
-
-    if (node->kind == ND_NEG) {
+    case ND_NEG:
         gen_expr(node->lhs, func);
-        char *ax = ax_of_type(node->type);
-        printf("  cmp %s, 0\n", ax);
+        printf("  cmp %s, 0\n", rax_of_type(node->type));
         printf("  sete al\n"
                "  movzb eax, al\n"
                "  mov [rsp], rax\n");
         return;
-    }
-
-    if (node->kind == ND_BCOMPL) {
+    case ND_BCOMPL:
         gen_expr(node->lhs, func);
-        char *ax = ax_of_type(node->type);
-        printf("  not %s\n", ax);
-        printf("  mov [rsp], %s\n", ax);
+        printf("  not %s\n", rax_of_type(node->type));
+        printf("  mov [rsp], %s\n", rax_of_type(node->type));
         return;
-    }
-
-    if (node->kind == ND_GVAR) {
-        if (node->type->ty == TY_ARRAY)
-            printf("  mov rax, OFFSET %s\n", node->name);
-        else if (is_enum(node->type)) { // TODO: re-consider
-            int len = vec_len(node->type->enums);
-            for (int i = 0; i < len; i++) {
-                Token *e = vec_at(node->type->enums, i);
-                if (!strcmp(node->name, e->str)) {
-                    printf("  mov rax, %d\n", i);
-                    printf("  push %d\n", i);
-                    return;
-                }
-            }
-            error_loc(node->loc, "[internal] enum");
-        } else {
-            char *ax = ax_of_type(node->type);
-            // char *wo = word_of_type(node->type);
-            printf("  mov rax, OFFSET %s\n", node->name);
-            printf("  mov %s, [rax]\n", ax);
-        }
-
-        printf("  push rax\n");
-        return;
-    }
-
-    if (node->kind == ND_COND) {
+    case ND_COND: {
         int lb = label_num++;
         gen_expr(node->cond, func);
-        char *ax = ax_of_type(node->cond->type);
+        char *rax = rax_of_type(node->cond->type);
         printf("  pop rax\n"
-               "  cmp %s, 0\n", ax);
+               "  cmp %s, 0\n", rax);
         printf("  je .Lcond_else%d\n", lb);
         gen_expr(node->lhs, func);
         printf("  jmp .Lcond_end%d\n"
@@ -389,36 +357,32 @@ void gen_expr(Node *node, Func *func) {
         printf(".Lcond_end%d:\n", lb);
         return;
     }
-
-    if (node->kind == ND_LAND) {
+    case ND_LAND: {
         int lb = label_num++;
-        printf("# logical AND operation\n");
         gen_expr(node->lhs, func);
-        char *axl = ax_of_type(node->lhs->type);
-        printf("  cmp %s, 0\n", axl);
+        char *raxl = rax_of_type(node->lhs->type);
+        printf("  cmp %s, 0\n", raxl);
         printf("  je .Land_end%d\n", lb);
         printf("  pop rax\n");
-        char *axr = ax_of_type(node->rhs->type);
+        char *raxr = rax_of_type(node->rhs->type);
         gen_expr(node->rhs, func);
-        printf("  cmp %s, 0\n", axr);
+        printf("  cmp %s, 0\n", raxr);
         printf("  je .Land_end%d\n", lb);
         printf("  pop rax\n"
                "  push 1\n");
         printf(".Land_end%d:\n", lb);
         return;
     }
-
-    if (node->kind == ND_LOR) {
+    case ND_LOR: {
         int lb = label_num++;
-        printf("# logical OR operation\n");
         gen_expr(node->lhs, func);
-        char *axl = ax_of_type(node->lhs->type);
-        printf("  cmp %s, 0\n", axl);
+        char *raxl = rax_of_type(node->lhs->type);
+        printf("  cmp %s, 0\n", raxl);
         printf("  jne .Lor_true%d\n", lb);
         printf("  pop rax\n");
         gen_expr(node->rhs, func);
-        char *axr = ax_of_type(node->rhs->type);
-        printf("  cmp %s, 0\n", axr);
+        char *raxr = rax_of_type(node->rhs->type);
+        printf("  cmp %s, 0\n", raxr);
         printf("  je .Lor_end%d\n", lb);
         printf(".Lor_true%d:\n", lb);
         printf("  pop rax\n"
@@ -426,196 +390,123 @@ void gen_expr(Node *node, Func *func) {
         printf(".Lor_end%d:\n", lb);
         return;
     }
-
-    if (node->kind == ND_LSH || node->kind == ND_RSH) {
-        char *ax = ax_of_type(node->lhs->type);
-        printf("# prepare shift\n");
-        gen_expr(node->lhs, func);
-        printf("# right hand side\n");
-        stack_depth += 8;
-        gen_expr(node->rhs, func);
-        stack_depth -= 8;
-        printf("  pop rcx\n");
-        printf("  mov %s, [rsp]\n", ax);
-
-        char *mne = node->kind == ND_LSH ? "shl" : "shr";
-        printf("  %s %s, cl\n", mne, ax);
-        printf("  mov [rsp], %s\n", ax);
-        return;
-    }
-
-    if (node->kind == ND_PREINCR || node->kind == ND_PREDECR) {
+    case ND_PREINCR: case ND_PREDECR: {
         int sign = node->kind == ND_PREINCR ? 1 : -1;
         int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
         gen_lval(node->lhs, func);
 
-        char *di = di_of_type(node->lhs->type);
-        char *ax = ax_of_type(node->lhs->type);
-        printf("  mov %s, [rax]\n", di);
-        printf("  add %s, %d\n", di, incr);
-        printf("  mov [rax], %s\n", di);
-        printf("  mov %s, %s\n", ax, di);
-        printf("  mov [rsp], %s\n", di);
+        char *rdi = rdi_of_type(node->lhs->type);
+        char *rax = rax_of_type(node->lhs->type);
+        printf("  mov %s, [rax]\n", rdi);
+        printf("  add %s, %d\n", rdi, incr);
+        printf("  mov [rax], %s\n", rdi);
+        printf("  mov %s, %s\n", rax, rdi);
+        printf("  mov [rsp], %s\n", rdi);
         return;
     }
-
-    if (node->kind == ND_POSTINCR || node->kind == ND_POSTDECR) {
+    case ND_POSTINCR: case ND_POSTDECR: {
         int sign = node->kind == ND_POSTINCR ? 1 : -1;
         int incr = sign * (is_pointer(node->type) ? type_size(node->type->ptr_to) : 1);
         gen_lval(node->lhs, func);
 
-        char *di = di_of_type(node->lhs->type);
-        char *ax = ax_of_type(node->lhs->type);
-        printf("  mov %s, [rax]\n", di);
-        printf("  mov [rsp], %s\n", di);
-        printf("  add %s, %d\n", di, incr);
-        printf("  mov [rax], %s\n", di);
-        printf("  mov %s, [rsp]\n", ax);
+        char *rdi = rdi_of_type(node->lhs->type);
+        char *rax = rax_of_type(node->lhs->type);
+        printf("  mov %s, [rax]\n", rdi);
+        printf("  mov [rsp], %s\n", rdi);
+        printf("  add %s, %d\n", rdi, incr);
+        printf("  mov [rax], %s\n", rdi);
+        printf("  mov %s, [rsp]\n", rax);
         return;
     }
+    case ND_LSHEQ: case ND_LSH:
+    case ND_RSHEQ: case ND_RSH: {
+        bool assign = is_assign_expr(node->kind);
 
-    if (ND_ADDEQ <= node->kind && node->kind <= ND_XOREQ) {
-        printf("# prepare assignment operation\n");
-        gen_lval(node->lhs, func);
-        printf("# prepare assignment operation; right hand side\n");
+        assign ? gen_lval(node->lhs, func) : gen_expr(node->lhs, func);
         stack_depth += 8;
         gen_expr(node->rhs, func);
         stack_depth -= 8;
+        printf("  pop rcx\n");
 
-        char *ax = ax_of_type(node->lhs->type);
-        switch (node->kind) {
-            case ND_LSHEQ: case ND_RSHEQ:
-                printf("  pop rcx\n"
-                       "  mov rdi, [rsp]\n"
-                       "  mov %s, [rdi]\n", ax);
-                switch (node->kind) {
-                    case ND_LSHEQ:
-                        printf("  shl %s, cl\n", ax);
-                        break;
-                    case ND_RSHEQ:
-                        printf("  shr %s, cl\n", ax);
-                        break;
-                    default:
-                        error("[internal] unreachable");
-                }
-                printf("  mov [rdi], %s\n", ax);
-                printf("  mov [rsp], %s\n", ax);
-                break;
-            default:
-                // rhs
-                printf("  pop rax\n");
-                gen_extend_rax(type_size(node->type), type_size(coerce_pointer(node->rhs->type)));
-                printf("  mov rdi, rax\n");
-                // lhs
-                printf("  mov rax, [rsp]\n"
-                       "  mov %s, [rax]\n", ax);
-                gen_extend_rax(type_size(node->type), type_size(coerce_pointer(node->lhs->type)));
-
-                char *di = di_of_type(node->rhs->type);
-                switch (node->kind) {
-                    case ND_ADDEQ:
-                        gen_coeff_ptr(node->lhs->type, node->rhs->type);
-                        printf("  add rax, rdi\n");
-                        break;
-                    case ND_SUBEQ:
-                        gen_coeff_ptr(node->lhs->type, node->rhs->type);
-                        printf("  sub rax, rdi\n");
-                        if (is_pointer_compat(node->lhs->type) &&
-                                is_pointer_compat(node->rhs->type)) {
-                            printf("  mov rdi, %d\n", type_size(node->lhs->type->ptr_to));
-                            printf("  cqo\n"
-                                   "  div %s\n", di);
-                        }
-                        break;
-                    case ND_MULEQ:
-                        printf("  imul %s, %s\n", ax, di);
-                        break;
-                    case ND_DIVEQ:
-                        printf("  cqo\n"
-                               "  idiv %s\n", di);
-                        break;
-                    case ND_MODEQ:
-                        printf("  cqo\n"
-                               "  idiv %s\n", di);
-                        printf("  mov rax, rdx\n");
-                        break;
-                    case ND_IOREQ:
-                        printf("  or %s, %s\n", ax, di);
-                        break;
-                    case ND_XOREQ:
-                        printf("  xor %s, %s\n", ax, di);
-                        break;
-                    case ND_ANDEQ:
-                        printf("  and %s, %s\n", ax, di);
-                        break;
-                    default:
-                        error("[internal] unreachable\n");
-                }
-                char *rax = ax_of_type(node->type);
-                printf("  mov rdi, [rsp]\n"
-                       "  mov [rdi], %s\n", rax);
-                printf("  mov [rsp], %s\n", rax);
+        char *rax = rax_of_type(node->lhs->type);
+        if (assign) {
+            printf("  mov rdi, [rsp]\n");
+            printf("  mov %s, [rdi]\n", rax);
+        } else {
+            printf("  mov %s, [rsp]\n", rax);
         }
+
+        char *mne = (node->kind == ND_LSH || node->kind == ND_LSHEQ) ? "shl" : "shr";
+        printf("  %s %s, cl\n", mne, rax);
+
+        if (assign)
+            printf("  mov [rdi], %s\n", rax);
+        printf("  mov [rsp], %s\n", rax);
         return;
     }
+    default:
+        break;
+    } // switch end
 
-    printf("# prepare arithmetic operation\n");
-    gen_expr(node->lhs, func);
-    printf("# right hand side\n");
+    bool assign = is_assign_expr(node->kind);
+
+    assign ? gen_lval(node->lhs, func) : gen_expr(node->lhs, func);
     gen_expr(node->rhs, func);
 
-    printf("# arithmetic operation\n");
     // rhs
     printf("  pop rax\n");
-    gen_extend_rax(type_size(node->type), type_size(coerce_pointer(node->rhs->type)));
+    extend_rax(type_size(node->type), type_size(coerce_pointer(node->rhs->type)));
     printf("  mov rdi, rax\n");
+
+    char *rax = rax_of_type(node->type);
+    char *rdi = rdi_of_type(node->type);
 
     // lhs
     printf("  mov rax, [rsp]\n");
-    gen_extend_rax(type_size(node->type), type_size(coerce_pointer(node->lhs->type)));
+    if (assign)
+        printf("  mov %s, [rax]\n", rax);
+    extend_rax(type_size(node->type), type_size(coerce_pointer(node->lhs->type)));
 
-    char *ax = ax_of_type(node->type);
-    char *di = di_of_type(node->type);
     switch (node->kind) {
-        case ND_ADD:
+        case ND_ADD: case ND_ADDEQ:
             gen_coeff_ptr(node->lhs->type, node->rhs->type);
-            printf("  add %s, %s\n", ax, di);
+            printf("  add %s, %s\n", rax, rdi);
             break;
-        case ND_SUB:
+        case ND_SUB: case ND_SUBEQ:
             gen_coeff_ptr(node->lhs->type, node->rhs->type);
-            printf("  sub %s, %s\n", ax, di);
+            printf("  sub %s, %s\n", rax, rdi);
             if (is_pointer_compat(node->lhs->type) && is_pointer_compat(node->rhs->type)) {
                 printf("  mov rdi, %d\n", type_size(node->lhs->type->ptr_to));
                 printf("  cqo\n"
-                       "  div %s\n", di);
+                       "  div %s\n", rdi);
             }
             break;
-        case ND_MUL:
-            printf("  imul %s, %s\n", ax, di);
+        case ND_MUL: case ND_MULEQ:
+            printf("  imul %s, %s\n", rax, rdi);
             break;
-        case ND_DIV:
+        case ND_DIV: case ND_DIVEQ:
             printf("  cqo\n"
-                   "  idiv %s\n", di);
+                   "  idiv %s\n", rdi);
             break;
-        case ND_MOD: {
+        case ND_MOD: case ND_MODEQ: {
             char *mne = type_size(node->type) == 4 ? "cdq"
                      : "cqo";
             printf("  %s\n", mne);
-            printf("  idiv %s\n", di);
+            printf("  idiv %s\n", rdi);
             printf("  mov rax, rdx\n");
             break;
         }
-        case ND_IOR:
-            printf("  or %s, %s\n", ax, di);
+        case ND_IOR: case ND_IOREQ:
+            printf("  or %s, %s\n", rax, rdi);
             break;
-        case ND_XOR:
-            printf("  xor %s, %s\n", ax, di);
+        case ND_XOR: case ND_XOREQ:
+            printf("  xor %s, %s\n", rax, rdi);
             break;
-        case ND_AND:
-            printf("  and %s, %s\n", ax, di);
+        case ND_AND: case ND_ANDEQ:
+            printf("  and %s, %s\n", rax, rdi);
             break;
         default: {
-            printf("  cmp %s, %s\n", ax, di);
+            printf("  cmp %s, %s\n", rax, rdi);
             char *mne = node->kind == ND_EQ ? "sete"
                       : node->kind == ND_NEQ ? "setne"
                       : node->kind == ND_LT ? "setl"
@@ -625,12 +516,17 @@ void gen_expr(Node *node, Func *func) {
             printf("  movzb rax, al\n");
         }
     }
-    printf("  mov [rsp], %s\n", ax);
-    printf("# end arithmetic operation\n");
+
+    if (assign)
+        printf("  mov rdi, [rsp]\n"
+               "  mov [rdi], %s\n", rax);
+    printf("  mov [rsp], %s\n", rax);
+
 }
 
 void gen_stmt(Node *node, Func *func) {
-    if (node->kind == ND_VARDECL) {
+    switch (node->kind) {
+    case ND_VARDECL:
         if (node->rhs == NULL)
             return;
 
@@ -639,53 +535,42 @@ void gen_stmt(Node *node, Func *func) {
             int len = vec_len(node->rhs->block);
             Type *elem_type = node->lhs->type->ptr_to;
             for (int i = 0; i < len; i++) {
-                printf("# local array initialization %d", i);
                 gen_lval(node->lhs, func);
-                char *ax = ax_of_type(elem_type);
+                char *rax = rax_of_type(elem_type);
                 printf("  add rax, %d\n", i * type_size(elem_type));
-                printf("  mov [rsp], %s\n", ax);
+                printf("  mov [rsp], %s\n", rax);
 
-                printf("# local array initialization %d; right hand side\n", i);
                 Node *e = vec_at(node->rhs->block, i);
                 stack_depth += 8;
                 gen_expr(e, func);
                 stack_depth -= 8;
-                printf("# local array initialization %d; assignment\n", i);
                 printf("  pop rax\n"
                        "  pop rdi\n"
-                       "  mov [rdi], %s\n", ax);
+                       "  mov [rdi], %s\n", rax);
             }
             return;
         }
 
-        printf("# variable declaration\n");
         gen_lval(node->lhs, func);
-        printf("# variable declaration; right hand side\n");
         stack_depth += 8;
         gen_expr(node->rhs, func);
         stack_depth -= 8;
-        printf("# variable declaration; assignment\n");
         printf("  pop rax\n");
         printf("  pop rdi\n");
-        char *ax = ax_of_type(node->type);
-        printf("  mov [rdi], %s\n", ax);
+        char *rax = rax_of_type(node->type);
+        printf("  mov [rdi], %s\n", rax);
         return;
-    }
-
-    if (node->kind == ND_RETURN) {
+    case ND_RETURN:
         if (node->lhs != NULL)
             gen_expr(node->lhs, func);
         printf("  jmp .L%s_return\n", func->name);
         return;
-    }
-
-    if (node->kind == ND_IF) {
+    case ND_IF: {
         int lb = label_num++;
-        printf("# if statement\n");
         gen_expr(node->cond, func);
-        char *ax = ax_of_type(node->cond->type);
+        char *rax = rax_of_type(node->cond->type);
         printf("  pop rax\n"
-               "  cmp %s, 0\n", ax);
+               "  cmp %s, 0\n", rax);
         if (node->rhs == NULL) {
             printf("  je .Lend_if%d\n", lb);
             gen_stmt(node->lhs, func);
@@ -700,32 +585,28 @@ void gen_stmt(Node *node, Func *func) {
         }
         return;
     }
-
-    if (node->kind == ND_WHILE) {
+    case ND_WHILE: {
         char *label_base = node->name;
         printf(".L%s_cont:\n", label_base);
         gen_expr(node->cond, func);
-        char *ax = ax_of_type(node->cond->type);
-        printf("# while jump\n");
+        char *rax = rax_of_type(node->cond->type);
         printf("  pop rax\n"
-               "  cmp %s, 0\n", ax);
+               "  cmp %s, 0\n", rax);
         printf("  je .L%s_end\n", label_base);
-        printf("# while body\n");
         gen_stmt(node->body, func);
         printf("  jmp .L%s_cont\n", label_base);
         printf(".L%s_end:\n", label_base);
         return;
     }
-
-    if (node->kind == ND_FOR) {
+    case ND_FOR:
         if (node->lhs != NULL)
             gen_stmt(node->lhs, func);
         printf(".L%s:\n", node->name);
         if (node->cond != NULL) {
             gen_expr(node->cond, func);
-            char *ax = ax_of_type(node->cond->type);
+            char *rax = rax_of_type(node->cond->type);
             printf("  pop rax\n"
-                   "  cmp %s, 0\n", ax);
+                   "  cmp %s, 0\n", rax);
             printf("  je .L%s_end\n", node->name);
         }
         gen_stmt(node->body, func);
@@ -735,43 +616,31 @@ void gen_stmt(Node *node, Func *func) {
         printf("  jmp .L%s\n", node->name);
         printf(".L%s_end:\n", node->name);
         return;
-    }
-
-    if (node->kind == ND_DOWHILE) {
+    case ND_DOWHILE:
         printf(".L%s:\n", node->name);
         gen_stmt(node->body, func);
-        printf("# prepare do-while repeat check\n");
         printf(".L%s_cont:\n", node->name);
         gen_expr(node->cond, func);
-        printf("# do-while repeat check\n");
-        char *ax = ax_of_type(node->cond->type);
         printf("  pop rax\n"
-               "  cmp %s, 0\n", ax);
+               "  cmp %s, 0\n", rax_of_type(node->cond->type));
         printf("  jne .L%s\n", node->name);
         printf(".L%s_end:\n", node->name);
 
         label_num++;
         return;
-    }
-
-    if (node->kind == ND_CONTINUE) {
+    case ND_CONTINUE:
         printf("  jmp .L%s_cont\n", node->name);
         return;
-    }
-
-    if (node->kind == ND_BREAK) {
+    case ND_BREAK:
         printf("  jmp .L%s_end\n", node->name);
         return;
-    }
-
-    if (node->kind == ND_BLOCK) {
+    case ND_BLOCK: {
         int len = vec_len(node->block);
         for (int i = 0; i < len; i++)
             gen_stmt(vec_at(node->block, i), func);
         return;
     }
-
-    if (node->kind == ND_SWITCH) {
+    case ND_SWITCH: {
         gen_expr(node->cond, func);
         printf("  pop rax\n");
         int len = vec_len(node->block);
@@ -782,41 +651,41 @@ void gen_stmt(Node *node, Func *func) {
             printf("  cmp rax, %d\n", stmt->lhs->val);
             printf("  je .L%s\n", stmt->name);
         }
-        bool defaulted = false;
+        bool has_default = false;
         for (int i = 0; i < len; i++) {
             Node *stmt = vec_at(node->block, i);
             if (stmt->kind == ND_DEFAULT) {
-                defaulted = true;
+                has_default = true;
                 printf("  jmp .L%s\n", stmt->name);
                 break;
             }
         }
-        if (!defaulted)
+        if (!has_default)
             printf("  jmp .L%s_end\n", node->name);
         for (int i = 0; i < len; i++)
             gen_stmt(vec_at(node->block, i), func);
         printf(".L%s_end:\n", node->name);
         return;
     }
-
-    if (node->kind == ND_CASE || node->kind == ND_DEFAULT) {
+    case ND_CASE: case ND_DEFAULT:
         printf(".L%s:\n", node->name);
         return;
+    default:
+        gen_expr(node, func);
+        printf("  pop rax\n");
     }
-
-    gen_expr(node, func);
-    printf("  pop rax # throw away from stack\n");
 }
 
 void gen_func(Func* func) {
     stack_depth = 0;
-    int params_len = vec_len(func->params);
     if (func->is_extern)
         return;
 
     printf("%s:\n", func->name);
     printf("  push rbp\n"
            "  mov rbp, rsp\n");
+
+    int params_len = vec_len(func->params);
 
     if (func->is_varargs) {
         printf("  mov QWORD PTR [rbp-8], %d\n", 8 * params_len);
@@ -837,7 +706,6 @@ void gen_func(Func* func) {
     printf("  sub rsp, %d\n", local_vars_space);
     for (int i = 0; i < vec_len(func->block); i++) {
         stack_depth = func->offset;
-        printf("# %s statement %d\n", func->name, i);
         gen_stmt(vec_at(func->block, i), func);
     }
     printf(".L%s_return:\n", func->name);
@@ -847,66 +715,68 @@ void gen_func(Func* func) {
 }
 
 void gen_lval(Node *node, Func *func) {
-    if (node->kind == ND_VAR) {
-        printf("# load local variable %s\n", node->name);
+    switch(node->kind) {
+    case ND_VAR:
         printf("  mov rax, rbp\n");
         printf("  sub rax, %d\n", node->val);
         printf("  push rax\n");
-        printf("# end load local variable %s\n", node->name);
         return;
-    } else if (node->kind == ND_GVAR) {
-        printf("# load global variable %s\n", node->name);
+    case ND_GVAR:
         printf("  mov rax, OFFSET %s\n", node->name);
         printf("  push rax\n");
-        printf("# end load global variable %s\n", node->name);
         return;
-    } else if (node->kind == ND_DEREF) {
-        printf("# dereferencing\n");
+    case ND_DEREF:
         gen_expr(node->lhs, func);
-        printf("# end dereferencing\n");
         return;
-    } else if (node->kind == ND_NUM) {
+    case ND_NUM:
         gen_expr(node, func);
         return;
-    } else if (node->kind == ND_ATTR) {
-        printf("# prepare attribute access\n");
+    case ND_ATTR:
         gen_lval(node->lhs, func);
         printf("  pop rax\n"
                "  add rax, %d\n", node->val);
         printf("  push rax\n");
         return;
+    default:
+        error("term should be a left value");
     }
-    error("term should be a left value");
 }
 
-void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
+static void gen_coeff_ptr(Type* lt /* rax */, Type* rt /* rdi */) {
     if (is_pointer_compat(lt) && is_pointer_compat(rt)) {
     } else if (lt->ty == TY_INT && rt->ty == TY_INT) {
     } else if (lt->ty == TY_INT) {
-        char *ax = ax_of_type(lt);
+        char *rax = rax_of_type(lt);
         int coeff = type_size(rt->ptr_to);
         if (coeff != 1)
-            printf("  imul %s, %d\n", ax, coeff);
+            printf("  imul %s, %d\n", rax, coeff);
     } else if (rt->ty == TY_INT) {
-        char *di = di_of_type(rt);
+        char *rdi = rdi_of_type(rt);
         int coeff = type_size(lt->ptr_to);
         if (coeff != 1)
-            printf("  imul %s, %d\n", di, coeff);
-    } else {
+            printf("  imul %s, %d\n", rdi, coeff);
+    } else
         error("addition/subtraction of two pointers is not allowed");
-    }
 }
 
-void gen_extend_rax(int dst, int src) {
+void extend_rax(int dst, int src) {
     if (dst <= src) return;
     if (dst == 4)
-        printf("  cbw\n"
-               "  cwde\n");
+        printf("  cbw\n  cwde\n");
     if (dst == 8)
         printf("  cdqe\n");
 }
 
-static char *ax_of_type(Type *type) {
+static void load_rax(int size) {
+    if (size == 1)
+        printf("  movsx eax, BYTE PTR [rax]\n");
+    else if (size == 4)
+        printf("  mov eax, DWORD PTR [rax]\n");
+    else /* size == 8 */
+        printf("  mov rax, [rax]\n");
+}
+
+static char *rax_of_type(Type *type) {
     if (type->ty == TY_ARRAY)
         return "rax";
     int size = type_size(type);
@@ -917,7 +787,7 @@ static char *ax_of_type(Type *type) {
     return "rax";
 }
 
-static char *di_of_type(Type *type) {
+static char *rdi_of_type(Type *type) {
     if (type->ty == TY_ARRAY)
         return "rdi";
     int size = type_size(type);
@@ -926,13 +796,4 @@ static char *di_of_type(Type *type) {
     if (size == 4)
         return "edi";
     return "rdi";
-}
-
-static void gen_load_rax(int size) {
-    if (size == 1)
-        printf("  movsx eax, BYTE PTR [rax]\n");
-    else if (size == 4)
-        printf("  mov eax, DWORD PTR [rax]\n");
-    else /* size == 8 */
-        printf("  mov rax, [rax]\n");
 }
