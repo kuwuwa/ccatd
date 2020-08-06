@@ -15,7 +15,7 @@ static Type *type_spec();
 static Node *consume_declarator(Type* typ);
 static Node *declarator(Type* typ);
 
-static Func *parse_func(Node *decl);
+static Func *parse_func(Node *decl, bool is_static, bool is_extern);
 static Type *parse_struct(Location *start);
 static Type *parse_enum(Location *start);
 
@@ -73,14 +73,39 @@ void parse() {
         toplevel();
 }
 
+static int MASK_TYPEDEF = 1 << 0;
+static int MASK_EXTERN  = 1 << 1;
+static int MASK_STATIC  = 1 << 2;
+
 static void toplevel() {
     Token *tk;
-    if ((tk = consume_keyword("typedef"))) {
-        Type *typ = type_spec();
-        Node *decl = declarator(typ);
-        typ = decl->type;
+    int storage_class = 0;
+    while (true) {
+        int m = ((tk = consume_keyword("typedef")) != NULL) ? MASK_TYPEDEF
+              : ((tk = consume_keyword("extern")) != NULL) ? MASK_EXTERN
+              : ((tk = consume_keyword("static")) != NULL) ? MASK_STATIC
+              : 0;
+        if (m == 0)
+            break;
+        if (storage_class)
+            error_loc(tk->loc, "[parse] multiple storage classes");
+        storage_class |= m;
+    }
+
+    bool is_typedef = (storage_class & MASK_TYPEDEF);
+    bool is_extern = (storage_class & MASK_EXTERN);
+    bool is_static = (storage_class & MASK_STATIC);
+
+    Type *typ = type_spec();
+    Node *decl = consume_declarator(typ);
+    if (decl == NULL) {
+        expect_keyword(";");
+        return;
+    }
+    if (is_typedef) {
         expect_keyword(";");
 
+        typ = decl->type;
         Type *aliased = calloc(1, sizeof(Type));
         aliased->ty = typ->ty;
         aliased->ptr_to = typ->ptr_to;
@@ -92,59 +117,23 @@ static void toplevel() {
         env_push(aliases, decl->name, aliased);
         return;
     }
-
-    bool is_extern = false;
-    bool is_static = false;
-    while (true) {
-        if ((tk = consume_keyword("extern")) != NULL) {
-            if (is_extern)
-                error_loc(tk->loc, "[parse] duplicate extern qualifier");
-            is_extern = true;
-        } else if ((tk = consume_keyword("static")) != NULL) {
-            if (is_extern)
-                error_loc(tk->loc, "[parse] duplicate static qualifier");
-            is_static = true;
-        } else
-            break;
-    }
-
-    Type *typ = type_spec();
-    Node *decl = consume_declarator(typ);
-    if (decl != NULL && is_func(decl->type)) {
-        Func *func = parse_func(decl);
-        func->is_static = is_static;
-        if (consume_keyword(";")) {
-            func->is_extern = true;
-        } else {
-            if (is_extern)
-                error_loc(decl->loc, "[parse] prototype function declaration shouldn't have a body");
-            func->is_extern = false;
-            func->block = block();
-            func->global_vars = map_new();
-            for (int i = 0; i < vec_len(global_vars->values); i++) {
-                Node *gvar = vec_at(global_vars->values, i);
-                map_put(func->global_vars, gvar->name, gvar);
-            }
-        }
+    if (is_func(decl->type)) {
+        Func *func = parse_func(decl, is_static, is_extern);
         vec_push(functions, func);
-    } else {
-        if (decl != NULL) {
-            decl->kind = ND_GVAR;
-            decl->is_extern = is_extern;
-            decl->is_static = is_static;
-
-            decl->rhs = NULL;
-            if (consume_keyword("=")) {
-                if (is_extern)
-                    error_loc(tk->loc, "[parse] extern variable declaration shouldn't have a value");
-                decl->rhs = initializer();
-            }
-
-            map_put(global_vars, decl->name, decl);
-        }
-        expect_keyword(";");
-
+        return;
     }
+
+    decl->kind = ND_GVAR;
+    decl->is_extern = is_extern;
+    decl->is_static = is_static;
+    decl->rhs = NULL;
+    if (consume_keyword("=")) {
+        if (is_extern)
+            error_loc(tk->loc, "[parse] extern variable declaration shouldn't have a value");
+        decl->rhs = initializer();
+    }
+    expect_keyword(";");
+    map_put(global_vars, decl->name, decl);
 }
 
 static Node *param() {
@@ -176,12 +165,26 @@ static void params(Func *fundecl) {
     }
 }
 
-static Func *parse_func(Node *decl) {
+static Func *parse_func(Node *decl, bool is_static, bool is_extern) {
     Func *func = calloc(1, sizeof(Func));
     func->loc = decl->loc;
     func->name = decl->name;
     func->ret_type = decl->type->ptr_to;
+    func->is_static = is_static;
     params(func);
+    if (consume_keyword(";")) {
+        func->is_extern = true;
+    } else {
+        if (is_extern)
+            error_loc(decl->loc, "[parse] prototype function declaration shouldn't have a body");
+        func->is_extern = false;
+        func->block = block();
+        func->global_vars = map_new();
+        for (int i = 0; i < vec_len(global_vars->values); i++) {
+            Node *gvar = vec_at(global_vars->values, i);
+            map_put(func->global_vars, gvar->name, gvar);
+        }
+    }
     return func;
 }
 

@@ -152,6 +152,7 @@ Node *gen_const_calc(Node *node) {
         if (is_integer(node->lhs->type) && is_integer(node->rhs->type)) {
             node->type = binary_int_op_result(node->lhs->type, node->rhs->type);
             node->val = add_or_sub(node->kind, node->lhs->val, node->rhs->val);
+            node->kind = ND_NUM;
         } else {
             if (node->kind == ND_ADD && is_pointer_compat(node->rhs->type)) {
                 Node *tmp = node->rhs;
@@ -173,6 +174,13 @@ Node *gen_const_calc(Node *node) {
                 node->rhs = new_rhs;
             }
         }
+        break;
+    case ND_LSH:
+        gen_const_calc(node->lhs);
+        gen_const_calc(node->rhs);
+        node->type = binary_int_op_result(node->lhs->type, node->rhs->type);
+        node->val = node->lhs->val << node->rhs->val;
+        node->kind = ND_NUM;
         break;
     default:
         error_loc(node->loc, "[codegen] unsupported expression in a global variable declaration");

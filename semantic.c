@@ -133,6 +133,18 @@ void sema_const_aux(Node *node) {
             error_loc(node->loc, "[semantic] unsupported addition in a global variable initialization");
         return;
     }
+    case ND_LSH: {
+        sema_const_aux(node->lhs);
+        sema_const_aux(node->rhs);
+        Type *lty = node->lhs->type;
+        Type *rty = node->rhs->type;
+
+        if (is_integer(lty) && is_integer(rty))
+            node->type = binary_int_op_result(lty, rty);
+        else
+            error_loc(node->loc, "[semantic] unsupported addition in a global variable initialization");
+        return;
+    }
     default:
         error_loc(node->loc, "[semantic] unsupported expression in a global variable initialization");
     }
